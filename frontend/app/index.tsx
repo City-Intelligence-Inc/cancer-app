@@ -11,12 +11,16 @@ export default function WelcomeScreen() {
   const { startSession } = useSession();
   const [loading, setLoading] = useState(false);
 
+  const [error, setError] = useState<string | null>(null);
+
   const handleStart = async () => {
     setLoading(true);
+    setError(null);
     try {
       await startSession();
       router.push("/wizard/age");
     } catch {
+      setError("Unable to connect. Please check your internet and try again.");
       setLoading(false);
     }
   };
@@ -45,6 +49,10 @@ export default function WelcomeScreen() {
             </View>
           ))}
         </View>
+
+        {error && (
+          <Text style={styles.errorText}>{error}</Text>
+        )}
 
         <Button
           title="Get Started"
@@ -108,5 +116,11 @@ const styles = StyleSheet.create({
     fontSize: fontSize.body,
     color: colors.text,
     fontWeight: "500",
+  },
+  errorText: {
+    color: "#dc2626",
+    textAlign: "center",
+    marginBottom: spacing.md,
+    fontSize: fontSize.body,
   },
 });

@@ -2,7 +2,7 @@ import Constants from "expo-constants";
 
 const API_URL: string =
   (Constants.expoConfig?.extra as Record<string, string> | undefined)
-    ?.API_URL ?? "http://localhost:8080";
+    ?.API_URL ?? "https://iutm2kyhqq.us-east-1.awsapprunner.com";
 
 interface Session {
   sessionId: string;
