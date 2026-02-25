@@ -1,7 +1,8 @@
 {
   "expo": {
-    "name": "frontend",
-    "slug": "frontend",
+    "name": "Cancer Support Matcher",
+    "slug": "cancer-support-matcher",
+    "owner": "city-intelligence-inc",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,13 +14,18 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.cityintelligence.cancersupport",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "package": "com.cityintelligence.cancersupport",
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
@@ -31,7 +37,11 @@
     ],
     "scheme": "cancer-app",
     "extra": {
-      "API_URL": "https://iutm2kyhqq.us-east-1.awsapprunner.com"
+      "API_URL": "https://iutm2kyhqq.us-east-1.awsapprunner.com",
+      "router": {},
+      "eas": {
+        "projectId": "9aae0a42-c7c7-469e-98ea-a5141fd8ff48"
+      }
     }
   }
 }
