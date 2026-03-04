@@ -41,3 +41,12 @@ export function updateSession(id: string, data: SessionUpdate): Promise<Session>
     body: JSON.stringify(data),
   });
 }
+
+export interface SheetData {
+  headers: string[];
+  rows: Record<string, string>[];
+}
+
+export function getSheetData(): Promise<SheetData> {
+  return request<SheetData>("/sheet-data");
+}

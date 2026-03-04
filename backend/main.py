@@ -1,8 +1,11 @@
+import csv
+import io
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
 
 import boto3
+import httpx
 from boto3.dynamodb.conditions import Key
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,6 +21,8 @@ app.add_middleware(
 )
 
 TABLE_NAME = os.environ.get("TABLE_NAME", "Sessions")
+SHEET_ID = os.environ.get("SHEET_ID", "1sEAYOOJfmmAU92wEQuUkezpiWJMo_grJb3W-1vJopoM")
+SHEET_GID = os.environ.get("SHEET_GID", "0")
 
 dynamodb = boto3.resource("dynamodb", region_name=os.environ.get("AWS_REGION", "us-east-1"))
 table = dynamodb.Table(TABLE_NAME)
@@ -99,3 +104,16 @@ def update_session(session_id: str, body: SessionUpdate):
     existing["answers"] = answers
     existing["updatedAt"] = now
     return existing
+
+
+@app.get("/sheet-data")
+async def get_sheet_data():
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={SHEET_GID}"
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        resp = await client.get(url, timeout=15)
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Failed to fetch sheet")
+    reader = csv.DictReader(io.StringIO(resp.text))
+    rows = [dict(row) for row in reader]
+    headers = list(rows[0].keys()) if rows else []
+    return {"headers": headers, "rows": rows}
