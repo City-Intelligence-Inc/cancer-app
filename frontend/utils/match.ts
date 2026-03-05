@@ -1,4 +1,4 @@
-import { Resource, resources as hardcodedResources } from "../data/resources";
+import { Resource } from "../data/resources";
 
 interface Answers {
   age?: number;
@@ -9,22 +9,18 @@ interface Answers {
 
 const NATIONWIDE = ["National", "Online", ""];
 
-export function matchResources(
-  answers: Answers,
-  resources: Resource[] = hardcodedResources
-): Resource[] {
+// Resources must always be passed explicitly — never falls back to hardcoded data.
+export function matchResources(answers: Answers, resources: Resource[]): Resource[] {
   const city = answers.location ?? "";
   const diagnosis = answers.diagnosis ?? "";
   const helpNeeded = answers.help_needed ?? [];
 
   const filtered = resources.filter((r) => {
-    // City: must be in the user's city, OR be national/online
+    // City: must be the user's city, or National/Online (available everywhere)
     const resourceCity = r.city ?? "";
-    const cityMatch =
-      NATIONWIDE.includes(resourceCity) || resourceCity === city;
-    if (!cityMatch) return false;
+    if (!NATIONWIDE.includes(resourceCity) && resourceCity !== city) return false;
 
-    // Diagnosis: if resource has specific diagnoses, user's diagnosis must be one of them
+    // Diagnosis: empty diagnoses means "All" — otherwise user's diagnosis must match
     if (r.diagnoses.length > 0 && diagnosis) {
       if (!r.diagnoses.includes(diagnosis)) return false;
     }
@@ -32,12 +28,12 @@ export function matchResources(
     return true;
   });
 
-  // Rank by help type overlap — more overlap = higher up
+  // Rank by help type overlap so best matches appear first
   return filtered
-    .map((r) => {
-      const overlap = helpNeeded.filter((h) => r.helpTypes.includes(h)).length;
-      return { resource: r, score: overlap };
-    })
+    .map((r) => ({
+      resource: r,
+      score: helpNeeded.filter((h) => r.helpTypes.includes(h)).length,
+    }))
     .sort((a, b) => b.score - a.score)
     .map((s) => s.resource);
 }
