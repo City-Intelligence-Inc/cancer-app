@@ -3,6 +3,7 @@ import io
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
+from typing import List, Optional
 
 import boto3
 import httpx
@@ -35,10 +36,10 @@ class SessionCreate(BaseModel):
 
 
 class SessionUpdate(BaseModel):
-    age: int | None = None
-    location: str | None = None
-    diagnosis: str | None = None
-    help_needed: list[str] | None = None
+    age: Optional[int] = None
+    location: Optional[str] = None
+    diagnosis: Optional[str] = None
+    help_needed: Optional[List[str]] = None
 
 
 @app.get("/health")
@@ -47,7 +48,7 @@ def health():
 
 
 @app.post("/sessions", status_code=201)
-def create_session(body: SessionCreate | None = None):
+def create_session(body: Optional[SessionCreate] = None):
     session_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     expires_at = int((datetime.now(timezone.utc) + timedelta(days=SESSION_TTL_DAYS)).timestamp())
@@ -113,7 +114,26 @@ async def get_sheet_data():
         resp = await client.get(url, timeout=15)
     if resp.status_code != 200:
         raise HTTPException(status_code=502, detail="Failed to fetch sheet")
-    reader = csv.DictReader(io.StringIO(resp.text))
-    rows = [dict(row) for row in reader]
-    headers = list(rows[0].keys()) if rows else []
+
+    raw = list(csv.reader(io.StringIO(resp.text)))
+
+    # Find the first data row: the row where the second non-empty cell is a small integer (the ID column)
+    data_start = next(
+        (i for i, row in enumerate(raw)
+         if len(row) > 1 and row[1].strip().isdigit()),
+        None,
+    )
+    if data_start is None or data_start == 0:
+        raise HTTPException(status_code=502, detail="Could not detect sheet structure")
+
+    headers = [c.strip() for c in raw[data_start - 1]]
+    data_rows = raw[data_start:]
+
+    rows = []
+    for row in data_rows:
+        padded = row + [""] * (len(headers) - len(row))
+        record = {headers[i]: padded[i] for i in range(len(headers))}
+        if any(v.strip() for v in record.values()):
+            rows.append(record)
+
     return {"headers": headers, "rows": rows}

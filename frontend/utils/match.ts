@@ -1,4 +1,4 @@
-import { Resource, resources } from "../data/resources";
+import { Resource, resources as hardcodedResources } from "../data/resources";
 
 interface Answers {
   age?: number;
@@ -7,7 +7,10 @@ interface Answers {
   help_needed?: string[];
 }
 
-export function matchResources(answers: Answers): Resource[] {
+export function matchResources(
+  answers: Answers,
+  resources: Resource[] = hardcodedResources
+): Resource[] {
   const scored = resources.map((r) => {
     let score = 0;
 
@@ -59,7 +62,7 @@ export function matchResources(answers: Answers): Resource[] {
 
   // Fallback: return all resources sorted by general relevance
   if (matched.length === 0) {
-    return resources;
+    return resources.slice();
   }
 
   return matched

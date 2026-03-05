@@ -1,4 +1,5 @@
 import Constants from "expo-constants";
+import { Resource } from "../data/resources";
 
 const API_URL: string =
   (Constants.expoConfig?.extra as Record<string, string> | undefined)
@@ -17,6 +18,95 @@ interface SessionUpdate {
   location?: string;
   diagnosis?: string;
   help_needed?: string[];
+}
+
+// Maps sheet category names to app helpType names
+const CATEGORY_MAP: Record<string, string[]> = {
+  "Mental Health": ["Mental Health"],
+  "Peer Support": ["Peer Support"],
+  "Financial Aid": ["Financial Assistance"],
+  "Practical Help": ["Transportation"],
+  "Legal & Employment": ["Legal Aid", "Workplace & Insurance"],
+  "Wellness & Nutrition": ["Nutrition"],
+  "Carer Support": ["Peer Support"],
+  "Information & Education": [],
+  "End-of-Life Care": [],
+};
+
+// Maps sheet cancer type names to app diagnosis names
+const DIAGNOSIS_MAP: Record<string, string> = {
+  Breast: "Breast Cancer",
+  Lung: "Lung Cancer",
+  Prostate: "Prostate Cancer",
+  Bowel: "Colorectal Cancer",
+  Blood: "Leukemia / Lymphoma",
+  Skin: "Skin Cancer",
+};
+
+function mapRowToResource(row: Record<string, string>): Resource {
+  const cats = [
+    row["Primary Category"],
+    row["Secondary Category"],
+    row["Additional Category 1"],
+    row["Additional Category 2"],
+  ].filter(Boolean);
+
+  const helpTypes = [
+    ...new Set(cats.flatMap((c) => CATEGORY_MAP[c] ?? [])),
+  ] as string[];
+
+  const cancerTypes = (row["Cancer Type"] || "")
+    .split(";")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const diagnoses = cancerTypes.includes("All")
+    ? []
+    : cancerTypes
+        .map((t) => DIAGNOSIS_MAP[t])
+        .filter((d): d is string => !!d);
+
+  const minAge = row["Min Age"] ? parseInt(row["Min Age"]) : null;
+  const maxAge = row["Max Age"] ? parseInt(row["Max Age"]) : null;
+  const ageRange: [number, number] | null =
+    minAge != null && maxAge != null ? [minAge, maxAge] : null;
+
+  const countries = (row["Countries Available"] || "")
+    .split(";")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const cities = (row["Cities Available"] || "")
+    .split(";")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const locations = [...new Set([...countries, ...cities])];
+
+  const contact = row["Contact / Referral Link"] || "";
+  const phoneMatch = contact.match(/Tel:\s*([\d\s+\-()\[\]]+)/);
+  const phone = phoneMatch ? phoneMatch[1].trim() : undefined;
+
+  return {
+    id: `sheet-${row["ID"]}`,
+    name: row["Resource Name"] || "Unknown",
+    description: row["Description"] || row["Notes"] || "",
+    helpTypes: helpTypes.length > 0 ? helpTypes : ["Peer Support"],
+    diagnoses,
+    ageRange,
+    locations,
+    url: row["Website URL"] || "",
+    phone,
+  };
+}
+
+interface SheetData {
+  headers: string[];
+  rows: Record<string, string>[];
+}
+
+export async function getSheetResources(): Promise<Resource[]> {
+  const res = await fetch(`${API_URL}/sheet-data`);
+  if (!res.ok) throw new Error(`Sheet fetch failed: ${res.status}`);
+  const data: SheetData = await res.json();
+  return data.rows.map(mapRowToResource).filter((r) => r.url);
 }
 
 async function request<T>(
