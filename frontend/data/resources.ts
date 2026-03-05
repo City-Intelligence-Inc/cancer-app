@@ -6,28 +6,36 @@ export interface Resource {
   diagnoses: string[];
   ageRange: [number, number] | null;
   locations: string[];
+  city?: string;
   url: string;
   phone?: string;
 }
 
+export const CITIES = ["London", "Edinburgh", "Diss", "Solihull"] as const;
+
 export const HELP_TYPES = [
-  "Financial Assistance",
-  "Peer Support",
-  "Transportation",
   "Mental Health",
-  "Nutrition",
-  "Legal Aid",
-  "Childcare",
-  "Workplace & Insurance",
+  "Peer Support",
+  "Financial Aid",
+  "Practical Help",
+  "Legal & Employment",
+  "Information & Education",
+  "Carer Support",
+  "Wellness & Nutrition",
+  "End-of-Life Care",
 ] as const;
 
 export const DIAGNOSES = [
   "Breast Cancer",
   "Lung Cancer",
+  "Bowel / Colorectal Cancer",
   "Prostate Cancer",
-  "Colorectal Cancer",
-  "Leukemia / Lymphoma",
+  "Blood / Leukaemia",
+  "Gynaecological Cancer",
+  "Head & Neck Cancer",
   "Skin Cancer",
+  "Pancreatic Cancer",
+  "Brain Cancer",
   "Other / Unsure",
 ] as const;
 

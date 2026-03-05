@@ -20,27 +20,26 @@ interface SessionUpdate {
   help_needed?: string[];
 }
 
-// Maps sheet category names to app helpType names
-const CATEGORY_MAP: Record<string, string[]> = {
-  "Mental Health": ["Mental Health"],
-  "Peer Support": ["Peer Support"],
-  "Financial Aid": ["Financial Assistance"],
-  "Practical Help": ["Transportation"],
-  "Legal & Employment": ["Legal Aid", "Workplace & Insurance"],
-  "Wellness & Nutrition": ["Nutrition"],
-  "Carer Support": ["Peer Support"],
-  "Information & Education": [],
-  "End-of-Life Care": [],
-};
+// Sheet category names map 1-to-1 with app HELP_TYPES
+const VALID_HELP_TYPES = new Set([
+  "Mental Health", "Peer Support", "Financial Aid", "Practical Help",
+  "Legal & Employment", "Information & Education", "Carer Support",
+  "Wellness & Nutrition", "End-of-Life Care",
+]);
 
-// Maps sheet cancer type names to app diagnosis names
+// Maps sheet cancer type names to app DIAGNOSES
 const DIAGNOSIS_MAP: Record<string, string> = {
   Breast: "Breast Cancer",
   Lung: "Lung Cancer",
+  Bowel: "Bowel / Colorectal Cancer",
   Prostate: "Prostate Cancer",
-  Bowel: "Colorectal Cancer",
-  Blood: "Leukemia / Lymphoma",
+  Blood: "Blood / Leukaemia",
+  Gynaecological: "Gynaecological Cancer",
+  "Head & Neck": "Head & Neck Cancer",
   Skin: "Skin Cancer",
+  Pancreatic: "Pancreatic Cancer",
+  Brain: "Brain Cancer",
+  Other: "Other / Unsure",
 };
 
 function mapRowToResource(row: Record<string, string>): Resource {
@@ -51,9 +50,7 @@ function mapRowToResource(row: Record<string, string>): Resource {
     row["Additional Category 2"],
   ].filter(Boolean);
 
-  const helpTypes = [
-    ...new Set(cats.flatMap((c) => CATEGORY_MAP[c] ?? [])),
-  ] as string[];
+  const helpTypes = [...new Set(cats.filter((c) => VALID_HELP_TYPES.has(c)))];
 
   const cancerTypes = (row["Cancer Type"] || "")
     .split(";")
@@ -88,10 +85,11 @@ function mapRowToResource(row: Record<string, string>): Resource {
     id: `sheet-${row["ID"]}`,
     name: row["Resource Name"] || "Unknown",
     description: row["Description"] || row["Notes"] || "",
-    helpTypes: helpTypes.length > 0 ? helpTypes : ["Peer Support"],
+    helpTypes: helpTypes.length > 0 ? helpTypes : ["Information & Education"],
     diagnoses,
     ageRange,
     locations,
+    city: row["City"] || "",
     url: row["Website URL"] || "",
     phone,
   };

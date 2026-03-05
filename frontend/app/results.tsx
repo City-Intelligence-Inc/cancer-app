@@ -10,55 +10,26 @@ import { Resource } from "../data/resources";
 import { getSheetResources } from "../services/api";
 import { colors, fontSize, spacing } from "../utils/theme";
 
-const UK_TERMS = [
-  "uk", "united kingdom", "england", "scotland", "wales",
-  "northern ireland", "london", "manchester", "birmingham",
-  "leeds", "liverpool", "bristol", "sheffield", "edinburgh",
-  "glasgow", "cardiff", "belfast", "oxford", "cambridge",
-];
-
-function isUKLocation(location?: string): boolean {
-  if (!location) return false;
-  const loc = location.toLowerCase().trim();
-  return UK_TERMS.some((term) => loc.includes(term));
-}
-
 export default function ResultsScreen() {
   const router = useRouter();
   const { answers } = useSession();
   const [sheetResources, setSheetResources] = useState<Resource[] | null>(null);
-  const [sheetError, setSheetError] = useState(false);
+  const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const ukLocation = isUKLocation(answers.location);
+  const notAvailable = answers.location === "Other / Not listed";
 
   useEffect(() => {
-    if (!ukLocation) {
-      setLoading(false);
-      return;
-    }
+    if (notAvailable) { setLoading(false); return; }
     getSheetResources()
-      .then((r) => {
-        setSheetResources(r);
-        setLoading(false);
-      })
-      .catch(() => {
-        setSheetError(true);
-        setLoading(false);
-      });
-  }, [ukLocation]);
+      .then((r) => { setSheetResources(r); setLoading(false); })
+      .catch(() => { setError(true); setLoading(false); });
+  }, [notAvailable]);
 
   const matched = useMemo(() => {
-    if (ukLocation) {
-      if (!sheetResources) return [];
-      return matchResources(answers, sheetResources);
-    }
-    return matchResources(answers);
-  }, [answers, ukLocation, sheetResources]);
-
-  const renderItem = ({ item }: { item: Resource }) => (
-    <ResourceCard resource={item} />
-  );
+    if (!sheetResources) return [];
+    return matchResources(answers, sheetResources);
+  }, [answers, sheetResources]);
 
   if (loading) {
     return (
@@ -69,28 +40,14 @@ export default function ResultsScreen() {
     );
   }
 
-  if (ukLocation && sheetError) {
+  if (notAvailable) {
     return (
       <SafeAreaView style={styles.centered}>
-        <Text style={styles.errorEmoji}>⚠️</Text>
-        <Text style={styles.errorTitle}>Couldn't load resources</Text>
-        <Text style={styles.errorBody}>
-          We had trouble fetching live data. Please try again.
-        </Text>
-        <Button title="Go Back" variant="secondary" onPress={() => router.back()} />
-      </SafeAreaView>
-    );
-  }
-
-  if (!ukLocation) {
-    return (
-      <SafeAreaView style={styles.centered}>
-        <Text style={styles.errorEmoji}>🌍</Text>
-        <Text style={styles.errorTitle}>Not available yet</Text>
-        <Text style={styles.errorBody}>
-          We currently have resources for the UK. Support for{" "}
-          {answers.location ? `"${answers.location}"` : "your location"} is
-          coming soon.
+        <Text style={styles.emoji}>🌍</Text>
+        <Text style={styles.title}>Not available yet</Text>
+        <Text style={styles.body}>
+          We don't have resources for your location yet. We're adding new cities
+          regularly — check back soon.
         </Text>
         <View style={{ marginTop: spacing.lg }}>
           <Button title="Start Over" variant="secondary" onPress={() => router.replace("/")} />
@@ -99,29 +56,42 @@ export default function ResultsScreen() {
     );
   }
 
+  if (error) {
+    return (
+      <SafeAreaView style={styles.centered}>
+        <Text style={styles.emoji}>⚠️</Text>
+        <Text style={styles.title}>Couldn't load resources</Text>
+        <Text style={styles.body}>Please check your connection and try again.</Text>
+        <Button title="Go Back" variant="secondary" onPress={() => router.back()} />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <FlatList
         data={matched}
-        renderItem={renderItem}
+        renderItem={({ item }: { item: Resource }) => <ResourceCard resource={item} />}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         ListHeaderComponent={
           <View style={styles.header}>
             <Text style={styles.heading}>Your Matches</Text>
             <Text style={styles.subtitle}>
-              We found {matched.length} resource{matched.length !== 1 ? "s" : ""}{" "}
-              based on your answers.
+              {matched.length > 0
+                ? `${matched.length} resource${matched.length !== 1 ? "s" : ""} found in ${answers.location}`
+                : `No resources found matching your criteria in ${answers.location}`}
             </Text>
           </View>
         }
+        ListEmptyComponent={
+          <Text style={styles.empty}>
+            Try adjusting your diagnosis or help type to see more results.
+          </Text>
+        }
         ListFooterComponent={
           <View style={styles.footer}>
-            <Button
-              title="Start Over"
-              variant="secondary"
-              onPress={() => router.replace("/")}
-            />
+            <Button title="Start Over" variant="secondary" onPress={() => router.replace("/")} />
           </View>
         }
       />
@@ -130,59 +100,19 @@ export default function ResultsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
+  container: { flex: 1, backgroundColor: colors.background },
   centered: {
-    flex: 1,
-    backgroundColor: colors.background,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: spacing.xl,
+    flex: 1, backgroundColor: colors.background,
+    alignItems: "center", justifyContent: "center", padding: spacing.xl,
   },
-  list: {
-    padding: spacing.lg,
-  },
-  header: {
-    marginBottom: spacing.lg,
-  },
-  heading: {
-    fontSize: fontSize.heading,
-    fontWeight: "700",
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  subtitle: {
-    fontSize: fontSize.body,
-    color: colors.textSecondary,
-    lineHeight: 24,
-  },
-  footer: {
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xl,
-  },
-  loadingText: {
-    marginTop: spacing.md,
-    fontSize: fontSize.body,
-    color: colors.textSecondary,
-  },
-  errorEmoji: {
-    fontSize: 48,
-    marginBottom: spacing.md,
-  },
-  errorTitle: {
-    fontSize: fontSize.heading,
-    fontWeight: "700",
-    color: colors.text,
-    marginBottom: spacing.sm,
-    textAlign: "center",
-  },
-  errorBody: {
-    fontSize: fontSize.body,
-    color: colors.textSecondary,
-    textAlign: "center",
-    lineHeight: 24,
-    marginBottom: spacing.lg,
-  },
+  list: { padding: spacing.lg },
+  header: { marginBottom: spacing.lg },
+  heading: { fontSize: fontSize.heading, fontWeight: "700", color: colors.text, marginBottom: spacing.xs },
+  subtitle: { fontSize: fontSize.body, color: colors.textSecondary, lineHeight: 24 },
+  footer: { paddingTop: spacing.md, paddingBottom: spacing.xl },
+  loadingText: { marginTop: spacing.md, fontSize: fontSize.body, color: colors.textSecondary },
+  emoji: { fontSize: 48, marginBottom: spacing.md },
+  title: { fontSize: fontSize.heading, fontWeight: "700", color: colors.text, marginBottom: spacing.sm, textAlign: "center" },
+  body: { fontSize: fontSize.body, color: colors.textSecondary, textAlign: "center", lineHeight: 24, marginBottom: spacing.lg },
+  empty: { fontSize: fontSize.body, color: colors.textSecondary, textAlign: "center", lineHeight: 24, paddingHorizontal: spacing.md },
 });

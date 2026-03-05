@@ -7,65 +7,37 @@ interface Answers {
   help_needed?: string[];
 }
 
+const NATIONWIDE = ["National", "Online", ""];
+
 export function matchResources(
   answers: Answers,
   resources: Resource[] = hardcodedResources
 ): Resource[] {
-  const scored = resources.map((r) => {
-    let score = 0;
+  const city = answers.location ?? "";
+  const diagnosis = answers.diagnosis ?? "";
+  const helpNeeded = answers.help_needed ?? [];
 
-    // Help-type overlap (strongest signal)
-    if (answers.help_needed?.length) {
-      const overlap = r.helpTypes.filter((h) =>
-        answers.help_needed!.includes(h)
-      );
-      score += overlap.length * 10;
+  const filtered = resources.filter((r) => {
+    // City: must be in the user's city, OR be national/online
+    const resourceCity = r.city ?? "";
+    const cityMatch =
+      NATIONWIDE.includes(resourceCity) || resourceCity === city;
+    if (!cityMatch) return false;
+
+    // Diagnosis: if resource has specific diagnoses, user's diagnosis must be one of them
+    if (r.diagnoses.length > 0 && diagnosis) {
+      if (!r.diagnoses.includes(diagnosis)) return false;
     }
 
-    // Diagnosis match
-    if (
-      answers.diagnosis &&
-      r.diagnoses.length > 0 &&
-      r.diagnoses.includes(answers.diagnosis)
-    ) {
-      score += 5;
-    }
-
-    // Age range match
-    if (answers.age != null && r.ageRange) {
-      if (answers.age >= r.ageRange[0] && answers.age <= r.ageRange[1]) {
-        score += 3;
-      }
-    }
-
-    // Location match (simple substring)
-    if (answers.location && r.locations.length > 0) {
-      const loc = answers.location.toLowerCase();
-      if (
-        r.locations.some(
-          (l) => l.toLowerCase() === "nationwide" || l.toLowerCase().includes(loc)
-        )
-      ) {
-        score += 3;
-      }
-    }
-
-    // Boost resources with no diagnosis restriction when nothing specific matched
-    if (r.diagnoses.length === 0 && score > 0) {
-      score += 1;
-    }
-
-    return { resource: r, score };
+    return true;
   });
 
-  const matched = scored.filter((s) => s.score > 0);
-
-  // Fallback: return all resources sorted by general relevance
-  if (matched.length === 0) {
-    return resources.slice();
-  }
-
-  return matched
+  // Rank by help type overlap — more overlap = higher up
+  return filtered
+    .map((r) => {
+      const overlap = helpNeeded.filter((h) => r.helpTypes.includes(h)).length;
+      return { resource: r, score: overlap };
+    })
     .sort((a, b) => b.score - a.score)
     .map((s) => s.resource);
 }

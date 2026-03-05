@@ -1,23 +1,26 @@
+"use client";
 import React, { useState } from "react";
-import { TextInput, StyleSheet } from "react-native";
+import { View, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import StepContainer from "../../components/StepContainer";
+import SelectableChip from "../../components/SelectableChip";
 import { useSession } from "../../context/SessionContext";
-import { colors, fontSize, radius, spacing } from "../../utils/theme";
+import { CITIES } from "../../data/resources";
+import { spacing } from "../../utils/theme";
+
+const ALL_OPTIONS = [...CITIES, "Other / Not listed"] as const;
 
 export default function LocationStep() {
   const router = useRouter();
   const { answers, saveAnswer } = useSession();
-  const [location, setLocation] = useState(answers.location ?? "");
+  const [selected, setSelected] = useState<string>(answers.location ?? "");
   const [loading, setLoading] = useState(false);
 
-  const isValid = location.trim().length > 0;
-
   const handleNext = async () => {
-    if (!isValid) return;
+    if (!selected) return;
     setLoading(true);
     try {
-      await saveAnswer("location", location.trim());
+      await saveAnswer("location", selected);
       router.push("/wizard/diagnosis");
     } finally {
       setLoading(false);
@@ -27,34 +30,29 @@ export default function LocationStep() {
   return (
     <StepContainer
       heading="Where are you located?"
-      description="Enter your city or state so we can find resources near you."
+      description="Select your city so we can find resources near you."
       onNext={handleNext}
-      nextDisabled={!isValid}
+      nextDisabled={!selected}
       loading={loading}
     >
-      <TextInput
-        style={styles.input}
-        value={location}
-        onChangeText={setLocation}
-        placeholder="e.g. New York, NY"
-        placeholderTextColor={colors.textSecondary}
-        keyboardType="default"
-        returnKeyType="done"
-        autoFocus
-      />
+      <View style={styles.chips}>
+        {ALL_OPTIONS.map((city) => (
+          <SelectableChip
+            key={city}
+            label={city}
+            selected={selected === city}
+            onPress={() => setSelected(city)}
+          />
+        ))}
+      </View>
     </StepContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  input: {
-    backgroundColor: colors.white,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    fontSize: fontSize.lg,
-    color: colors.text,
+  chips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     marginTop: spacing.sm,
   },
 });
