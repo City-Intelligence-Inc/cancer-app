@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   View,
   TextInput,
@@ -9,7 +9,7 @@ import {
 import { useRouter } from "expo-router";
 import StepContainer from "../../components/StepContainer";
 import { useSession } from "../../context/SessionContext";
-import { CITIES } from "../../data/resources";
+import { getSheetCities } from "../../services/api";
 import { colors, fontSize, radius, spacing } from "../../utils/theme";
 
 const OTHER = "Other / Not listed";
@@ -20,17 +20,22 @@ export default function LocationStep() {
   const [query, setQuery] = useState(answers.location ?? "");
   const [selected, setSelected] = useState(answers.location ?? "");
   const [loading, setLoading] = useState(false);
+  const [sheetCities, setSheetCities] = useState<string[]>([]);
+
+  useEffect(() => {
+    getSheetCities().then(setSheetCities).catch(() => setSheetCities([]));
+  }, []);
 
   // Filter cities by query; always append "Other / Not listed" at bottom
   const suggestions = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
-    const matches = CITIES.filter((c) =>
+    const matches = sheetCities.filter((c) =>
       c.toLowerCase().startsWith(q)
-    ) as string[];
+    );
     if (!matches.includes(OTHER)) matches.push(OTHER);
     return matches;
-  }, [query]);
+  }, [query, sheetCities]);
 
   const isValid = selected.length > 0 && query === selected;
 

@@ -7,8 +7,6 @@ interface Answers {
   help_needed?: string[];
 }
 
-const NATIONWIDE = ["National", "Online", ""];
-
 // Resources must always be passed explicitly — never falls back to hardcoded data.
 export function matchResources(answers: Answers, resources: Resource[]): Resource[] {
   const city = answers.location ?? "";
@@ -16,9 +14,8 @@ export function matchResources(answers: Answers, resources: Resource[]): Resourc
   const helpNeeded = answers.help_needed ?? [];
 
   const filtered = resources.filter((r) => {
-    // City: must be the user's city, or National/Online (available everywhere)
-    const resourceCity = r.city ?? "";
-    if (!NATIONWIDE.includes(resourceCity) && resourceCity !== city) return false;
+    // Location: pass if entire-country, no city restriction, or user's city matches
+    if (!r.entireCountry && r.cities.length > 0 && !r.cities.includes(city)) return false;
 
     // Diagnosis: empty diagnoses means "All" — otherwise user's diagnosis must match
     if (r.diagnoses.length > 0 && diagnosis) {

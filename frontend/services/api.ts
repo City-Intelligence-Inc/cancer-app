@@ -75,6 +75,7 @@ function mapRowToResource(row: Record<string, string>): Resource {
     .split(";")
     .map((s) => s.trim())
     .filter(Boolean);
+  const entireCountry = row["Entire Country?"] === "Yes";
   const locations = [...new Set([...countries, ...cities])];
 
   const contact = row["Contact / Referral Link"] || "";
@@ -85,14 +86,30 @@ function mapRowToResource(row: Record<string, string>): Resource {
     id: `sheet-${row["ID"]}`,
     name: row["Resource Name"] || "Unknown",
     description: row["Description"] || row["Notes"] || "",
-    helpTypes: helpTypes.length > 0 ? helpTypes : ["Information & Education"],
+    helpTypes,
     diagnoses,
     ageRange,
     locations,
-    city: row["City"] || "",
+    entireCountry,
+    cities,
     url: row["Website URL"] || "",
     phone,
   };
+}
+
+export async function getSheetCities(): Promise<string[]> {
+  const res = await fetch(`${API_URL}/sheet-data`);
+  if (!res.ok) throw new Error(`Sheet fetch failed: ${res.status}`);
+  const data: SheetData = await res.json();
+  const citySet = new Set<string>();
+  for (const row of data.rows) {
+    (row["Cities Available"] || "")
+      .split(";")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .forEach((c) => citySet.add(c));
+  }
+  return Array.from(citySet).sort();
 }
 
 interface SheetData {
