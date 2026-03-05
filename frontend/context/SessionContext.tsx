@@ -1,6 +1,10 @@
 import React, { createContext, useContext, useState, useCallback } from "react";
 import { createSession, updateSession } from "../services/api";
 
+function generateLocalId() {
+  return "local-" + Math.random().toString(36).slice(2, 10);
+}
+
 interface Answers {
   age?: number;
   location?: string;
@@ -25,8 +29,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [answers, setAnswers] = useState<Answers>({});
 
   const startSession = useCallback(async () => {
-    const session = await createSession();
-    setSessionId(session.sessionId);
+    try {
+      const session = await createSession();
+      setSessionId(session.sessionId);
+    } catch {
+      // Backend unavailable — use a local session so the app still works
+      setSessionId(generateLocalId());
+    }
     setAnswers({});
   }, []);
 
@@ -34,7 +43,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     async <K extends keyof Answers>(key: K, value: Answers[K]) => {
       if (!sessionId) throw new Error("No active session");
       setAnswers((prev) => ({ ...prev, [key]: value }));
-      await updateSession(sessionId, { [key]: value });
+      // Skip remote save for local sessions
+      if (!sessionId.startsWith("local-")) {
+        await updateSession(sessionId, { [key]: value }).catch(() => {});
+      }
     },
     [sessionId]
   );

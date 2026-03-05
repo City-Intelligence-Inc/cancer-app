@@ -107,6 +107,34 @@ def update_session(session_id: str, body: SessionUpdate):
     return existing
 
 
+# City lookup keyed by resource ID — used until the sheet has a native "City" column
+CITY_BY_ID: dict = {
+    "1": "Diss",
+    "2": "London",
+    "3": "London",
+    "4": "London",
+    "5": "Edinburgh",
+    "6": "Edinburgh",
+    "7": "National",
+    "8": "London",
+    "9": "Online",
+    "10": "Online",
+    "11": "London",
+    "12": "London",
+    "13": "London",
+    "14": "Solihull",
+    "15": "London",
+    "16": "National",
+    "17": "London",
+    "18": "London",
+    "19": "London",
+    "20": "London",
+    "21": "National",
+    "22": "Edinburgh",
+    "23": "London",
+}
+
+
 @app.get("/sheet-data")
 async def get_sheet_data():
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={SHEET_GID}"
@@ -129,11 +157,19 @@ async def get_sheet_data():
     headers = [c.strip() for c in raw[data_start - 1]]
     data_rows = raw[data_start:]
 
+    has_city_col = "City" in headers
+    if not has_city_col:
+        headers = headers + ["City"]
+
     rows = []
     for row in data_rows:
         padded = row + [""] * (len(headers) - len(row))
         record = {headers[i]: padded[i] for i in range(len(headers))}
-        if any(v.strip() for v in record.values()):
-            rows.append(record)
+        if not any(v.strip() for v in record.values()):
+            continue
+        # Backfill City from lookup table if the sheet doesn't have it yet
+        if not has_city_col:
+            record["City"] = CITY_BY_ID.get(record.get("ID", ""), "")
+        rows.append(record)
 
     return {"headers": headers, "rows": rows}
