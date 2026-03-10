@@ -5,6 +5,7 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
+  ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
 import StepContainer from "../../components/StepContainer";
@@ -16,38 +17,41 @@ export default function LocationStep() {
   const router = useRouter();
   const { answers, saveAnswer } = useSession();
   const [query, setQuery] = useState(answers.location ?? "");
-  const [selected, setSelected] = useState(answers.location ?? "");
   const [loading, setLoading] = useState(false);
   const [sheetCities, setSheetCities] = useState<string[]>([]);
+  const [citiesLoading, setCitiesLoading] = useState(true);
 
   useEffect(() => {
-    getSheetCities().then(setSheetCities).catch(() => setSheetCities([]));
+    getSheetCities()
+      .then(setSheetCities)
+      .catch(() => setSheetCities([]))
+      .finally(() => setCitiesLoading(false));
   }, []);
 
-  // Only show cities that exist in the database
+  // Find exact case-insensitive match in the database
+  const matchedCity = useMemo(
+    () => sheetCities.find((c) => c.toLowerCase() === query.trim().toLowerCase()),
+    [query, sheetCities]
+  );
+
+  // Dropdown suggestions — only when no exact match yet
   const suggestions = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return [];
+    if (!q || matchedCity) return [];
     return sheetCities.filter((c) => c.toLowerCase().startsWith(q));
-  }, [query, sheetCities]);
+  }, [query, sheetCities, matchedCity]);
 
-  const isValid = selected.length > 0 && query === selected;
+  const isValid = !!matchedCity;
 
   const handleSelect = (city: string) => {
-    setSelected(city);
     setQuery(city);
   };
 
-  const handleChangeText = (text: string) => {
-    setQuery(text);
-    setSelected(""); // clear selection when user keeps typing
-  };
-
   const handleNext = async () => {
-    if (!isValid) return;
+    if (!matchedCity) return;
     setLoading(true);
     try {
-      await saveAnswer("location", selected);
+      await saveAnswer("location", matchedCity);
       router.push("/wizard/diagnosis");
     } finally {
       setLoading(false);
@@ -66,7 +70,7 @@ export default function LocationStep() {
         <TextInput
           style={[styles.input, isValid && styles.inputSelected]}
           value={query}
-          onChangeText={handleChangeText}
+          onChangeText={setQuery}
           placeholder="e.g. London"
           placeholderTextColor={colors.textSecondary}
           autoFocus
@@ -75,7 +79,15 @@ export default function LocationStep() {
           returnKeyType="done"
         />
 
-        {suggestions.length > 0 && !isValid && (
+        {citiesLoading && (
+          <ActivityIndicator
+            size="small"
+            color={colors.primary}
+            style={styles.spinner}
+          />
+        )}
+
+        {suggestions.length > 0 && (
           <View style={styles.dropdown}>
             {suggestions.map((city, index) => (
               <TouchableOpacity
@@ -95,7 +107,7 @@ export default function LocationStep() {
 
         {isValid && (
           <View style={styles.selectedBadge}>
-            <Text style={styles.selectedBadgeText}>✓ {selected}</Text>
+            <Text style={styles.selectedBadgeText}>✓ {matchedCity}</Text>
           </View>
         )}
       </View>
@@ -119,6 +131,9 @@ const styles = StyleSheet.create({
   inputSelected: {
     borderColor: colors.primary,
   },
+  spinner: {
+    marginTop: spacing.sm,
+  },
   dropdown: {
     marginTop: 4,
     backgroundColor: colors.white,
@@ -136,17 +151,10 @@ const styles = StyleSheet.create({
   itemLast: {
     borderBottomWidth: 0,
   },
-  itemOther: {
-    backgroundColor: colors.background,
-  },
   itemText: {
     fontSize: fontSize.body,
     color: colors.text,
     fontWeight: "500",
-  },
-  itemTextOther: {
-    color: colors.textSecondary,
-    fontStyle: "italic",
   },
   selectedBadge: {
     marginTop: spacing.sm,
