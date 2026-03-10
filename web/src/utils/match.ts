@@ -1,4 +1,4 @@
-import { Resource, resources } from "../data/resources";
+import { Resource } from "../data/resources";
 
 interface Answers {
   age?: number;
@@ -7,42 +7,26 @@ interface Answers {
   help_needed?: string[];
 }
 
-export function matchResources(answers: Answers): Resource[] {
-  const scored = resources.map((r) => {
-    let score = 0;
+export function matchResources(answers: Answers, resources: Resource[]): Resource[] {
+  const city = answers.location ?? "";
+  const diagnosis = answers.diagnosis ?? "";
+  const helpNeeded = answers.help_needed ?? [];
 
-    if (answers.help_needed?.length) {
-      const overlap = r.helpTypes.filter((h) => answers.help_needed!.includes(h));
-      score += overlap.length * 10;
+  const filtered = resources.filter((r) => {
+    if (!r.entireCountry && r.cities.length > 0 && !r.cities.includes(city)) return false;
+
+    if (r.diagnoses.length > 0 && diagnosis) {
+      if (!r.diagnoses.includes(diagnosis)) return false;
     }
 
-    if (answers.diagnosis && r.diagnoses.length > 0 && r.diagnoses.includes(answers.diagnosis)) {
-      score += 5;
-    }
-
-    if (answers.age != null && r.ageRange) {
-      if (answers.age >= r.ageRange[0] && answers.age <= r.ageRange[1]) {
-        score += 3;
-      }
-    }
-
-    if (answers.location && r.locations.length > 0) {
-      const loc = answers.location.toLowerCase();
-      if (r.locations.some((l) => l.toLowerCase() === "nationwide" || l.toLowerCase().includes(loc))) {
-        score += 3;
-      }
-    }
-
-    if (r.diagnoses.length === 0 && score > 0) {
-      score += 1;
-    }
-
-    return { resource: r, score };
+    return true;
   });
 
-  const matched = scored.filter((s) => s.score > 0);
-
-  if (matched.length === 0) return resources;
-
-  return matched.sort((a, b) => b.score - a.score).map((s) => s.resource);
+  return filtered
+    .map((r) => ({
+      resource: r,
+      score: helpNeeded.filter((h) => r.helpTypes.includes(h)).length,
+    }))
+    .sort((a, b) => b.score - a.score)
+    .map((s) => s.resource);
 }

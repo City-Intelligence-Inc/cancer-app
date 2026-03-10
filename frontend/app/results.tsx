@@ -80,9 +80,14 @@ export default function ResultsScreen() {
           </View>
         }
         ListEmptyComponent={
-          <Text style={styles.empty}>
-            Try adjusting your answers to see more results.
-          </Text>
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emoji}>🚧</Text>
+            <Text style={styles.title}>Not implemented yet</Text>
+            <Text style={styles.empty}>
+              We don't have resources matching your criteria yet. We're working on
+              adding more — check back soon.
+            </Text>
+          </View>
         }
       />
     </SafeAreaView>
@@ -105,5 +110,6 @@ const styles = StyleSheet.create({
   emoji: { fontSize: 48, marginBottom: spacing.md },
   title: { fontSize: fontSize.heading, fontWeight: "700", color: colors.text, marginBottom: spacing.sm, textAlign: "center" },
   body: { fontSize: fontSize.body, color: colors.textSecondary, textAlign: "center", lineHeight: 24, marginBottom: spacing.lg },
-  empty: { fontSize: fontSize.body, color: colors.textSecondary, textAlign: "center", lineHeight: 24, paddingHorizontal: spacing.md },
+  emptyContainer: { alignItems: "center" as const, paddingVertical: spacing.xl },
+  empty: { fontSize: fontSize.body, color: colors.textSecondary, textAlign: "center" as const, lineHeight: 24, paddingHorizontal: spacing.md },
 });

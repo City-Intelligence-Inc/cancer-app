@@ -1,0 +1,20 @@
+{
+  "version": "50.0.0",
+  "files": {
+    "d2b7dbd3bd4a922c3b138687b0090827552a2fb8282c3d82ef195604717161aa": {
+      "displayName": "CancerAppStack Template",
+      "source": {
+        "path": "CancerAppStack.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "current_account-current_region-bfba7c88": {
+          "bucketName": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}",
+          "objectKey": "d2b7dbd3bd4a922c3b138687b0090827552a2fb8282c3d82ef195604717161aa.json",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-file-publishing-role-${AWS::AccountId}-${AWS::Region}"
+        }
+      }
+    }
+  },
+  "dockerImages": {}
+}
