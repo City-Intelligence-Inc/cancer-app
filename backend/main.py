@@ -3,7 +3,7 @@ import io
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import boto3
 import httpx
@@ -38,8 +38,35 @@ class SessionCreate(BaseModel):
 class SessionUpdate(BaseModel):
     age: Optional[int] = None
     location: Optional[str] = None
+    country: Optional[str] = None
     diagnosis: Optional[str] = None
     help_needed: Optional[List[str]] = None
+    role: Optional[str] = None
+    treatment_stage: Optional[str] = None
+
+
+class MatchResultEntry(BaseModel):
+    resourceId: str
+    resourceName: str
+    score: int
+    reasons: List[Dict[str, Any]]
+
+
+class RejectionEntry(BaseModel):
+    resourceId: str
+    resourceName: str
+    rejectedBy: str
+    detail: str
+
+
+class MatchLogBody(BaseModel):
+    timestamp: str
+    answers: Dict[str, Any]
+    totalResources: int
+    matchedCount: int
+    rejectedCount: int
+    matches: List[MatchResultEntry]
+    rejections: List[RejectionEntry]
 
 
 @app.get("/health")
@@ -105,6 +132,32 @@ def update_session(session_id: str, body: SessionUpdate):
     existing["answers"] = answers
     existing["updatedAt"] = now
     return existing
+
+
+@app.post("/sessions/{session_id}/match-log")
+def save_match_log(session_id: str, body: MatchLogBody):
+    """Store the full matching log on the session — every filter decision for every resource."""
+    resp = table.query(
+        KeyConditionExpression=Key("sessionId").eq(session_id),
+        ScanIndexForward=False,
+        Limit=1,
+    )
+    items = resp.get("Items", [])
+    if not items:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    existing = items[0]
+    now = datetime.now(timezone.utc).isoformat()
+
+    match_log = body.model_dump()
+
+    table.update_item(
+        Key={"sessionId": session_id, "createdAt": existing["createdAt"]},
+        UpdateExpression="SET matchLog = :m, updatedAt = :u",
+        ExpressionAttributeValues={":m": match_log, ":u": now},
+    )
+
+    return {"status": "ok", "sessionId": session_id}
 
 
 # City lookup keyed by resource ID — used until the sheet has a native "City" column

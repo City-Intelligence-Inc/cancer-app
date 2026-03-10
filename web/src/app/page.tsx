@@ -49,7 +49,15 @@ export default function WelcomePage() {
           ))}
         </div>
 
-        <Button title="Get Started" onClick={handleStart} loading={loading} className="w-full" />
+        <div className="flex flex-col gap-3">
+          <Button title="Get Started" onClick={handleStart} loading={loading} className="w-full" />
+          <Button
+            title="Browse All Resources"
+            variant="secondary"
+            onClick={() => router.push("/resources")}
+            className="w-full"
+          />
+        </div>
       </div>
     </main>
   );

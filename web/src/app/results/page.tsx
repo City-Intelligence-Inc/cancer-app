@@ -5,13 +5,13 @@ import { useRouter } from "next/navigation";
 import ResourceCard from "@/components/ResourceCard";
 import Button from "@/components/Button";
 import { useSession } from "@/context/SessionContext";
-import { matchResources } from "@/utils/match";
+import { matchResourcesWithLog } from "@/utils/match";
 import { Resource } from "@/data/resources";
-import { getSheetResources } from "@/services/api";
+import { getSheetResources, saveMatchLog } from "@/services/api";
 
 export default function ResultsPage() {
   const router = useRouter();
-  const { answers } = useSession();
+  const { sessionId, answers } = useSession();
   const [sheetResources, setSheetResources] = useState<Resource[] | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -25,10 +25,18 @@ export default function ResultsPage() {
       .catch(() => { setError(true); setLoading(false); });
   }, [notAvailable]);
 
-  const matched = useMemo(() => {
-    if (!sheetResources) return [];
-    return matchResources(answers, sheetResources);
+  const { matched, log } = useMemo(() => {
+    if (!sheetResources) return { matched: [], log: null };
+    const result = matchResourcesWithLog(answers, sheetResources);
+    return { matched: result.matched, log: result.log };
   }, [answers, sheetResources]);
+
+  // Save match log to DynamoDB
+  useEffect(() => {
+    if (log && sessionId && !sessionId.startsWith("local-")) {
+      saveMatchLog(sessionId, log as unknown as Record<string, unknown>).catch(() => {});
+    }
+  }, [log, sessionId]);
 
   if (loading) {
     return (

@@ -170,6 +170,16 @@ export async function getSheetCities(): Promise<string[]> {
   return Array.from(citySet).sort();
 }
 
+export function saveMatchLog(
+  sessionId: string,
+  log: Record<string, unknown>
+): Promise<{ status: string }> {
+  return request<{ status: string }>(`/sessions/${sessionId}/match-log`, {
+    method: "POST",
+    body: JSON.stringify(log),
+  });
+}
+
 /** Returns a map of city -> country, built from sheet data */
 export async function getSheetCityCountryMap(): Promise<Record<string, string>> {
   const data = await request<SheetData>("/sheet-data");

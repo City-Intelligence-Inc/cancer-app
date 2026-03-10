@@ -207,3 +207,13 @@ export function updateSession(
     body: JSON.stringify(data),
   });
 }
+
+export function saveMatchLog(
+  sessionId: string,
+  log: Record<string, unknown>
+): Promise<{ status: string }> {
+  return request<{ status: string }>(`/sessions/${sessionId}/match-log`, {
+    method: "POST",
+    body: JSON.stringify(log),
+  });
+}
