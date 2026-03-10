@@ -28,17 +28,8 @@ export const HELP_TYPES = [
   "End-of-Life Care",
 ] as const;
 
+// Fallback list — the app fetches diagnoses dynamically from the sheet
 export const DIAGNOSES = [
-  "Breast Cancer",
-  "Lung Cancer",
-  "Bowel / Colorectal Cancer",
-  "Prostate Cancer",
-  "Blood / Leukaemia",
-  "Gynaecological Cancer",
-  "Head & Neck Cancer",
-  "Skin Cancer",
-  "Pancreatic Cancer",
-  "Brain Cancer",
   "Other / Unsure",
 ] as const;
 

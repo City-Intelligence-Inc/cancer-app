@@ -1,16 +1,26 @@
-import React, { useState } from "react";
-import { View, StyleSheet } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, StyleSheet, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import StepContainer from "../../components/StepContainer";
 import SelectableChip from "../../components/SelectableChip";
 import { useSession } from "../../context/SessionContext";
-import { DIAGNOSES } from "../../data/resources";
+import { getSheetDiagnoses } from "../../services/api";
+import { colors } from "../../utils/theme";
 
 export default function DiagnosisStep() {
   const router = useRouter();
   const { answers, saveAnswer } = useSession();
   const [selected, setSelected] = useState<string>(answers.diagnosis ?? "");
   const [loading, setLoading] = useState(false);
+  const [diagnoses, setDiagnoses] = useState<string[]>([]);
+  const [diagLoading, setDiagLoading] = useState(true);
+
+  useEffect(() => {
+    getSheetDiagnoses()
+      .then(setDiagnoses)
+      .catch(() => setDiagnoses(["Other / Unsure"]))
+      .finally(() => setDiagLoading(false));
+  }, []);
 
   const handleNext = async () => {
     if (!selected) return;
@@ -31,16 +41,20 @@ export default function DiagnosisStep() {
       nextDisabled={!selected}
       loading={loading}
     >
-      <View style={styles.chips}>
-        {DIAGNOSES.map((d) => (
-          <SelectableChip
-            key={d}
-            label={d}
-            selected={selected === d}
-            onPress={() => setSelected(selected === d ? "" : d)}
-          />
-        ))}
-      </View>
+      {diagLoading ? (
+        <ActivityIndicator size="small" color={colors.primary} />
+      ) : (
+        <View style={styles.chips}>
+          {diagnoses.map((d) => (
+            <SelectableChip
+              key={d}
+              label={d}
+              selected={selected === d}
+              onPress={() => setSelected(selected === d ? "" : d)}
+            />
+          ))}
+        </View>
+      )}
     </StepContainer>
   );
 }

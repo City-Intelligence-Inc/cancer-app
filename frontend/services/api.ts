@@ -27,19 +27,32 @@ interface SessionUpdate {
 const VALID_HELP_TYPES = new Set<string>(HELP_TYPES);
 
 // Maps sheet cancer type names to app DIAGNOSES
+// Known mappings from sheet short names to display names.
+// Unknown types pass through as "<Name> Cancer" so new sheet entries aren't silently dropped.
 const DIAGNOSIS_MAP: Record<string, string> = {
   Breast: "Breast Cancer",
   Lung: "Lung Cancer",
   Bowel: "Bowel / Colorectal Cancer",
   Prostate: "Prostate Cancer",
   Blood: "Blood / Leukaemia",
+  Lymphoma: "Lymphoma",
   Gynaecological: "Gynaecological Cancer",
   "Head & Neck": "Head & Neck Cancer",
   Skin: "Skin Cancer",
   Pancreatic: "Pancreatic Cancer",
   Brain: "Brain Cancer",
+  Kidney: "Kidney Cancer",
+  Liver: "Liver Cancer",
+  Bladder: "Bladder Cancer",
+  Thyroid: "Thyroid Cancer",
+  Sarcoma: "Sarcoma",
+  Mesothelioma: "Mesothelioma",
   Other: "Other / Unsure",
 };
+
+function mapDiagnosis(sheetValue: string): string {
+  return DIAGNOSIS_MAP[sheetValue] ?? `${sheetValue} Cancer`;
+}
 
 // Maps sheet treatment stage values to app TREATMENT_STAGES
 const TREATMENT_STAGE_MAP: Record<string, string> = {
@@ -69,9 +82,7 @@ function mapRowToResource(row: Record<string, string>): Resource {
     .filter(Boolean);
   const diagnoses = cancerTypes.includes("All")
     ? []
-    : cancerTypes
-        .map((t) => DIAGNOSIS_MAP[t])
-        .filter((d): d is string => !!d);
+    : cancerTypes.map(mapDiagnosis);
 
   const minAge = row["Min Age"] ? parseInt(row["Min Age"]) : null;
   const maxAge = row["Max Age"] ? parseInt(row["Max Age"]) : null;
@@ -139,6 +150,28 @@ export async function getSheetCities(): Promise<string[]> {
       .forEach((c) => citySet.add(c));
   }
   return Array.from(citySet).sort();
+}
+
+/** Returns unique diagnoses from the sheet, mapped to display names */
+export async function getSheetDiagnoses(): Promise<string[]> {
+  const res = await fetch(`${API_URL}/sheet-data`);
+  if (!res.ok) throw new Error(`Sheet fetch failed: ${res.status}`);
+  const data: SheetData = await res.json();
+  const diagSet = new Set<string>();
+  for (const row of data.rows) {
+    (row["Cancer Type"] || "")
+      .split(";")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .forEach((t) => {
+        if (t === "All") return;
+        diagSet.add(mapDiagnosis(t));
+      });
+  }
+  const sorted = Array.from(diagSet).sort();
+  // Always include "Other / Unsure" at the end
+  if (!sorted.includes("Other / Unsure")) sorted.push("Other / Unsure");
+  return sorted;
 }
 
 /** Returns a map of city → country, built from sheet data */

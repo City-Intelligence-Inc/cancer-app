@@ -1,17 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import StepContainer from "@/components/StepContainer";
 import SelectableChip from "@/components/SelectableChip";
 import { useSession } from "@/context/SessionContext";
-import { DIAGNOSES } from "@/data/resources";
+import { getSheetDiagnoses } from "@/services/api";
 
 export default function DiagnosisPage() {
   const router = useRouter();
   const { answers, saveAnswer } = useSession();
   const [selected, setSelected] = useState(answers.diagnosis ?? "");
   const [loading, setLoading] = useState(false);
+  const [diagnoses, setDiagnoses] = useState<string[]>([]);
+  const [diagLoading, setDiagLoading] = useState(true);
+
+  useEffect(() => {
+    getSheetDiagnoses()
+      .then(setDiagnoses)
+      .catch(() => setDiagnoses(["Other / Unsure"]))
+      .finally(() => setDiagLoading(false));
+  }, []);
 
   const handleNext = async () => {
     if (!selected) return;
@@ -32,16 +41,20 @@ export default function DiagnosisPage() {
       nextDisabled={!selected}
       loading={loading}
     >
-      <div className="flex flex-wrap gap-2">
-        {DIAGNOSES.map((d) => (
-          <SelectableChip
-            key={d}
-            label={d}
-            selected={selected === d}
-            onClick={() => setSelected(selected === d ? "" : d)}
-          />
-        ))}
-      </div>
+      {diagLoading ? (
+        <p className="text-sm text-text-secondary">Loading cancer types...</p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {diagnoses.map((d) => (
+            <SelectableChip
+              key={d}
+              label={d}
+              selected={selected === d}
+              onClick={() => setSelected(selected === d ? "" : d)}
+            />
+          ))}
+        </div>
+      )}
     </StepContainer>
   );
 }

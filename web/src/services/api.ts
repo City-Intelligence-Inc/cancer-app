@@ -61,13 +61,24 @@ const DIAGNOSIS_MAP: Record<string, string> = {
   Bowel: "Bowel / Colorectal Cancer",
   Prostate: "Prostate Cancer",
   Blood: "Blood / Leukaemia",
+  Lymphoma: "Lymphoma",
   Gynaecological: "Gynaecological Cancer",
   "Head & Neck": "Head & Neck Cancer",
   Skin: "Skin Cancer",
   Pancreatic: "Pancreatic Cancer",
   Brain: "Brain Cancer",
+  Kidney: "Kidney Cancer",
+  Liver: "Liver Cancer",
+  Bladder: "Bladder Cancer",
+  Thyroid: "Thyroid Cancer",
+  Sarcoma: "Sarcoma",
+  Mesothelioma: "Mesothelioma",
   Other: "Other / Unsure",
 };
+
+function mapDiagnosis(sheetValue: string): string {
+  return DIAGNOSIS_MAP[sheetValue] ?? `${sheetValue} Cancer`;
+}
 
 const TREATMENT_STAGE_MAP: Record<string, string> = {
   All: "All",
@@ -96,9 +107,7 @@ function mapRowToResource(row: Record<string, string>): Resource {
     .filter(Boolean);
   const diagnoses = cancerTypes.includes("All")
     ? []
-    : cancerTypes
-        .map((t) => DIAGNOSIS_MAP[t])
-        .filter((d): d is string => !!d);
+    : cancerTypes.map(mapDiagnosis);
 
   const minAge = row["Min Age"] ? parseInt(row["Min Age"]) : null;
   const maxAge = row["Max Age"] ? parseInt(row["Max Age"]) : null;
@@ -178,6 +187,25 @@ export function saveMatchLog(
     method: "POST",
     body: JSON.stringify(log),
   });
+}
+
+/** Returns unique diagnoses from the sheet, mapped to display names */
+export async function getSheetDiagnoses(): Promise<string[]> {
+  const data = await request<SheetData>("/sheet-data");
+  const diagSet = new Set<string>();
+  for (const row of data.rows) {
+    (row["Cancer Type"] || "")
+      .split(";")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .forEach((t) => {
+        if (t === "All") return;
+        diagSet.add(mapDiagnosis(t));
+      });
+  }
+  const sorted = Array.from(diagSet).sort();
+  if (!sorted.includes("Other / Unsure")) sorted.push("Other / Unsure");
+  return sorted;
 }
 
 /** Returns a map of city -> country, built from sheet data */
