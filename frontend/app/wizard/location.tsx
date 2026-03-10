@@ -12,8 +12,6 @@ import { useSession } from "../../context/SessionContext";
 import { getSheetCities } from "../../services/api";
 import { colors, fontSize, radius, spacing } from "../../utils/theme";
 
-const OTHER = "Other / Not listed";
-
 export default function LocationStep() {
   const router = useRouter();
   const { answers, saveAnswer } = useSession();
@@ -26,15 +24,11 @@ export default function LocationStep() {
     getSheetCities().then(setSheetCities).catch(() => setSheetCities([]));
   }, []);
 
-  // Filter cities by query; always append "Other / Not listed" at bottom
+  // Only show cities that exist in the database
   const suggestions = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
-    const matches = sheetCities.filter((c) =>
-      c.toLowerCase().startsWith(q)
-    );
-    if (!matches.includes(OTHER)) matches.push(OTHER);
-    return matches;
+    return sheetCities.filter((c) => c.toLowerCase().startsWith(q));
   }, [query, sheetCities]);
 
   const isValid = selected.length > 0 && query === selected;
@@ -89,19 +83,11 @@ export default function LocationStep() {
                 style={[
                   styles.item,
                   index === suggestions.length - 1 && styles.itemLast,
-                  city === OTHER && styles.itemOther,
                 ]}
                 onPress={() => handleSelect(city)}
                 activeOpacity={0.7}
               >
-                <Text
-                  style={[
-                    styles.itemText,
-                    city === OTHER && styles.itemTextOther,
-                  ]}
-                >
-                  {city}
-                </Text>
+                <Text style={styles.itemText}>{city}</Text>
               </TouchableOpacity>
             ))}
           </View>

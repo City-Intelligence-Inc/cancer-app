@@ -17,14 +17,11 @@ export default function ResultsScreen() {
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const notAvailable = answers.location === "Other / Not listed";
-
   useEffect(() => {
-    if (notAvailable) { setLoading(false); return; }
     getSheetResources()
       .then((r) => { setSheetResources(r); setLoading(false); })
       .catch(() => { setError(true); setLoading(false); });
-  }, [notAvailable]);
+  }, []);
 
   const matched = useMemo(() => {
     if (!sheetResources) return [];
@@ -36,22 +33,6 @@ export default function ResultsScreen() {
       <SafeAreaView style={styles.centered}>
         <ActivityIndicator size="large" color={colors.primary} />
         <Text style={styles.loadingText}>Finding resources near you…</Text>
-      </SafeAreaView>
-    );
-  }
-
-  if (notAvailable) {
-    return (
-      <SafeAreaView style={styles.centered}>
-        <Text style={styles.emoji}>🌍</Text>
-        <Text style={styles.title}>Not available yet</Text>
-        <Text style={styles.body}>
-          We don't have resources for your location yet. We're adding new cities
-          regularly — check back soon.
-        </Text>
-        <View style={{ marginTop: spacing.lg }}>
-          <Button title="Start Over" variant="secondary" onPress={() => router.replace("/")} />
-        </View>
       </SafeAreaView>
     );
   }
