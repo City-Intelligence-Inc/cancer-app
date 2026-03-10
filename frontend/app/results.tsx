@@ -63,17 +63,26 @@ export default function ResultsScreen() {
                 ? `${matched.length} resource${matched.length !== 1 ? "s" : ""} found in ${answers.location}`
                 : `No resources found matching your criteria in ${answers.location}`}
             </Text>
+            <View style={styles.headerActions}>
+              <Button
+                title="Edit Answers"
+                variant="secondary"
+                onPress={() => router.push("/wizard/age")}
+                style={styles.headerButton}
+              />
+              <Button
+                title="Start Over"
+                variant="secondary"
+                onPress={() => router.replace("/")}
+                style={styles.headerButton}
+              />
+            </View>
           </View>
         }
         ListEmptyComponent={
           <Text style={styles.empty}>
-            Try adjusting your diagnosis or help type to see more results.
+            Try adjusting your answers to see more results.
           </Text>
-        }
-        ListFooterComponent={
-          <View style={styles.footer}>
-            <Button title="Start Over" variant="secondary" onPress={() => router.replace("/")} />
-          </View>
         }
       />
     </SafeAreaView>
@@ -89,8 +98,9 @@ const styles = StyleSheet.create({
   list: { padding: spacing.lg },
   header: { marginBottom: spacing.lg },
   heading: { fontSize: fontSize.heading, fontWeight: "700", color: colors.text, marginBottom: spacing.xs },
-  subtitle: { fontSize: fontSize.body, color: colors.textSecondary, lineHeight: 24 },
-  footer: { paddingTop: spacing.md, paddingBottom: spacing.xl },
+  subtitle: { fontSize: fontSize.body, color: colors.textSecondary, lineHeight: 24, marginBottom: spacing.md },
+  headerActions: { flexDirection: "row", gap: spacing.sm },
+  headerButton: { flex: 1 },
   loadingText: { marginTop: spacing.md, fontSize: fontSize.body, color: colors.textSecondary },
   emoji: { fontSize: 48, marginBottom: spacing.md },
   title: { fontSize: fontSize.heading, fontWeight: "700", color: colors.text, marginBottom: spacing.sm, textAlign: "center" },
