@@ -23,7 +23,7 @@ class CancerAppStack(Stack):
             empty_on_delete=True,
         )
 
-        # DynamoDB Table
+        # DynamoDB Table — Sessions
         table = dynamodb.Table(
             self,
             "SessionsTable",
@@ -37,6 +37,18 @@ class CancerAppStack(Stack):
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=RemovalPolicy.DESTROY,
             time_to_live_attribute="expiresAt",
+        )
+
+        # DynamoDB Table — Resources (synced from Google Sheet)
+        resources_table = dynamodb.Table(
+            self,
+            "ResourcesTable",
+            table_name="Resources",
+            partition_key=dynamodb.Attribute(
+                name="resourceId", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=RemovalPolicy.DESTROY,
         )
 
         # IAM role for App Runner to pull from ECR
@@ -54,6 +66,7 @@ class CancerAppStack(Stack):
             assumed_by=iam.ServicePrincipal("tasks.apprunner.amazonaws.com"),
         )
         table.grant_read_write_data(instance_role)
+        resources_table.grant_read_write_data(instance_role)
 
         # App Runner Service
         service = apprunner.CfnService(
@@ -74,6 +87,10 @@ class CancerAppStack(Stack):
                                 name="TABLE_NAME",
                                 value=table.table_name,
                             ),
+                            apprunner.CfnService.KeyValuePairProperty(
+                                name="RESOURCES_TABLE_NAME",
+                                value=resources_table.table_name,
+                            ),
                         ],
                     ),
                 ),
@@ -93,3 +110,4 @@ class CancerAppStack(Stack):
         cdk.CfnOutput(self, "ServiceUrl", value=f"https://{service.attr_service_url}")
         cdk.CfnOutput(self, "EcrRepoUri", value=repo.repository_uri)
         cdk.CfnOutput(self, "TableName", value=table.table_name)
+        cdk.CfnOutput(self, "ResourcesTableName", value=resources_table.table_name)

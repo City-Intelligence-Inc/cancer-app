@@ -3,6 +3,7 @@ import io
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 import boto3
@@ -22,11 +23,13 @@ app.add_middleware(
 )
 
 TABLE_NAME = os.environ.get("TABLE_NAME", "Sessions")
+RESOURCES_TABLE_NAME = os.environ.get("RESOURCES_TABLE_NAME", "Resources")
 SHEET_ID = os.environ.get("SHEET_ID", "1sEAYOOJfmmAU92wEQuUkezpiWJMo_grJb3W-1vJopoM")
 SHEET_GID = os.environ.get("SHEET_GID", "0")
 
 dynamodb = boto3.resource("dynamodb", region_name=os.environ.get("AWS_REGION", "us-east-1"))
 table = dynamodb.Table(TABLE_NAME)
+resources_table = dynamodb.Table(RESOURCES_TABLE_NAME)
 
 SESSION_TTL_DAYS = 30
 
@@ -74,6 +77,8 @@ def health():
     return {"status": "ok"}
 
 
+# ── Sessions ──────────────────────────────────────────────────────────
+
 @app.post("/sessions", status_code=201)
 def create_session(body: Optional[SessionCreate] = None):
     session_id = str(uuid.uuid4())
@@ -106,7 +111,6 @@ def get_session(session_id: str):
 
 @app.put("/sessions/{session_id}")
 def update_session(session_id: str, body: SessionUpdate):
-    # Fetch existing session
     resp = table.query(
         KeyConditionExpression=Key("sessionId").eq(session_id),
         ScanIndexForward=False,
@@ -136,7 +140,7 @@ def update_session(session_id: str, body: SessionUpdate):
 
 @app.post("/sessions/{session_id}/match-log")
 def save_match_log(session_id: str, body: MatchLogBody):
-    """Store the full matching log on the session — every filter decision for every resource."""
+    """Store the full matching log on the session."""
     resp = table.query(
         KeyConditionExpression=Key("sessionId").eq(session_id),
         ScanIndexForward=False,
@@ -148,7 +152,6 @@ def save_match_log(session_id: str, body: MatchLogBody):
 
     existing = items[0]
     now = datetime.now(timezone.utc).isoformat()
-
     match_log = body.model_dump()
 
     table.update_item(
@@ -160,36 +163,20 @@ def save_match_log(session_id: str, body: MatchLogBody):
     return {"status": "ok", "sessionId": session_id}
 
 
-# City lookup keyed by resource ID — used until the sheet has a native "City" column
+# ── Sheet data ────────────────────────────────────────────────────────
+
 CITY_BY_ID: dict = {
-    "1": "Diss",
-    "2": "London",
-    "3": "London",
-    "4": "London",
-    "5": "Edinburgh",
-    "6": "Edinburgh",
-    "7": "National",
-    "8": "London",
-    "9": "Online",
-    "10": "Online",
-    "11": "London",
-    "12": "London",
-    "13": "London",
-    "14": "Solihull",
-    "15": "London",
-    "16": "National",
-    "17": "London",
-    "18": "London",
-    "19": "London",
-    "20": "London",
-    "21": "National",
-    "22": "Edinburgh",
-    "23": "London",
+    "1": "Diss", "2": "London", "3": "London", "4": "London",
+    "5": "Edinburgh", "6": "Edinburgh", "7": "National", "8": "London",
+    "9": "Online", "10": "Online", "11": "London", "12": "London",
+    "13": "London", "14": "Solihull", "15": "London", "16": "National",
+    "17": "London", "18": "London", "19": "London", "20": "London",
+    "21": "National", "22": "Edinburgh", "23": "London",
 }
 
 
-@app.get("/sheet-data")
-async def get_sheet_data():
+async def _fetch_sheet_rows() -> tuple[list[str], list[dict[str, str]]]:
+    """Fetch and parse the Google Sheet, returning (headers, rows)."""
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={SHEET_GID}"
     async with httpx.AsyncClient(follow_redirects=True) as client:
         resp = await client.get(url, timeout=15)
@@ -198,7 +185,6 @@ async def get_sheet_data():
 
     raw = list(csv.reader(io.StringIO(resp.text)))
 
-    # Find the first data row: the row where the second non-empty cell is a small integer (the ID column)
     data_start = next(
         (i for i, row in enumerate(raw)
          if len(row) > 1 and row[1].strip().isdigit()),
@@ -220,9 +206,134 @@ async def get_sheet_data():
         record = {headers[i]: padded[i] for i in range(len(headers))}
         if not any(v.strip() for v in record.values()):
             continue
-        # Backfill City from lookup table if the sheet doesn't have it yet
         if not has_city_col:
             record["City"] = CITY_BY_ID.get(record.get("ID", ""), "")
         rows.append(record)
 
+    return headers, rows
+
+
+@app.get("/sheet-data")
+async def get_sheet_data():
+    headers, rows = await _fetch_sheet_rows()
     return {"headers": headers, "rows": rows}
+
+
+# ── Resources sync (Sheet ↔ DynamoDB) ─────────────────────────────────
+
+def _safe_int(val: str) -> Optional[int]:
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return None
+
+
+def _sheet_row_to_resource(row: dict[str, str]) -> dict[str, Any]:
+    """Convert a raw sheet row into a DynamoDB resource item."""
+    row_id = row.get("ID", "").strip()
+    if not row_id:
+        return {}
+
+    cats = [
+        row.get("Primary Category", ""),
+        row.get("Secondary Category", ""),
+        row.get("Additional Category 1", ""),
+        row.get("Additional Category 2", ""),
+    ]
+    help_types = list({c.strip() for c in cats if c.strip()})
+
+    cancer_raw = [s.strip() for s in (row.get("Cancer Type", "") or "").split(";") if s.strip()]
+
+    countries = [s.strip() for s in (row.get("Countries Available", "") or "").split(";") if s.strip()]
+    cities = [s.strip() for s in (row.get("Cities Available", "") or "").split(";") if s.strip()]
+
+    min_age = _safe_int(row.get("Min Age", ""))
+    max_age = _safe_int(row.get("Max Age", ""))
+
+    return {
+        "resourceId": row_id,
+        "name": row.get("Resource Name", "Unknown").strip(),
+        "description": (row.get("Description", "") or row.get("Notes", "")).strip(),
+        "helpTypes": help_types,
+        "cancerTypes": cancer_raw,
+        "entireCountry": row.get("Entire Country?", "").strip() == "Yes",
+        "countries": countries,
+        "cities": cities,
+        "minAge": Decimal(str(min_age)) if min_age is not None else None,
+        "maxAge": Decimal(str(max_age)) if max_age is not None else None,
+        "patientCarer": row.get("Patient / Carer / Both", "Both").strip() or "Both",
+        "treatmentStage": row.get("Treatment Stage", "All").strip() or "All",
+        "websiteUrl": row.get("Website URL", "").strip(),
+        "contact": row.get("Contact / Referral Link", "").strip(),
+        "sheetRow": {k: v for k, v in row.items() if v},  # full raw row for audit
+        "syncedAt": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@app.post("/sync-resources")
+async def sync_resources():
+    """Pull every row from the Google Sheet and upsert into the Resources DynamoDB table."""
+    _, rows = await _fetch_sheet_rows()
+
+    synced = 0
+    skipped = 0
+    for row in rows:
+        item = _sheet_row_to_resource(row)
+        if not item or not item.get("resourceId"):
+            skipped += 1
+            continue
+        # Remove None values (DynamoDB doesn't accept None)
+        clean = {k: v for k, v in item.items() if v is not None}
+        resources_table.put_item(Item=clean)
+        synced += 1
+
+    return {
+        "status": "ok",
+        "synced": synced,
+        "skipped": skipped,
+        "syncedAt": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@app.get("/resources")
+def get_resources():
+    """Return all resources from DynamoDB."""
+    result = resources_table.scan()
+    items = result.get("Items", [])
+    # Handle pagination
+    while "LastEvaluatedKey" in result:
+        result = resources_table.scan(ExclusiveStartKey=result["LastEvaluatedKey"])
+        items.extend(result.get("Items", []))
+    return {"resources": items, "count": len(items)}
+
+
+@app.get("/sync-status")
+async def sync_status():
+    """Compare sheet rows vs DynamoDB resources for a live diff view."""
+    _, sheet_rows = await _fetch_sheet_rows()
+    sheet_ids = {r.get("ID", "").strip() for r in sheet_rows if r.get("ID", "").strip()}
+
+    db_result = resources_table.scan(ProjectionExpression="resourceId, syncedAt")
+    db_items = db_result.get("Items", [])
+    while "LastEvaluatedKey" in db_result:
+        db_result = resources_table.scan(
+            ExclusiveStartKey=db_result["LastEvaluatedKey"],
+            ProjectionExpression="resourceId, syncedAt",
+        )
+        db_items.extend(db_result.get("Items", []))
+
+    db_ids = {item["resourceId"] for item in db_items}
+    db_synced_at = {item["resourceId"]: item.get("syncedAt", "") for item in db_items}
+
+    in_sheet_only = sorted(sheet_ids - db_ids)
+    in_db_only = sorted(db_ids - sheet_ids)
+    in_both = sorted(sheet_ids & db_ids)
+
+    return {
+        "sheetCount": len(sheet_ids),
+        "dbCount": len(db_ids),
+        "inSync": len(in_both),
+        "inSheetOnly": in_sheet_only,
+        "inDbOnly": in_db_only,
+        "lastSynced": max(db_synced_at.values()) if db_synced_at else None,
+    }
