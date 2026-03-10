@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Canopy",
-    "slug": "canopy-cancer-support",
+    "slug": "cancer-support-matcher",
     "owner": "city-intelligence-inc",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -22,7 +22,7 @@
           "NSAllowsArbitraryLoads": true
         }
       },
-      "buildNumber": "5"
+      "buildNumber": "6"
     },
     "android": {
       "adaptiveIcon": {
