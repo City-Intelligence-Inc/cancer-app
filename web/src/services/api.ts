@@ -1,4 +1,4 @@
-import { Resource } from "@/data/resources";
+import { Resource, HELP_TYPES } from "@/data/resources";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://iutm2kyhqq.us-east-1.awsapprunner.com";
 
@@ -15,6 +15,9 @@ interface SessionUpdate {
   location?: string;
   diagnosis?: string;
   help_needed?: string[];
+  role?: string;
+  treatment_stage?: string;
+  country?: string;
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -49,11 +52,8 @@ export interface SheetData {
   rows: Record<string, string>[];
 }
 
-const VALID_HELP_TYPES = new Set([
-  "Mental Health", "Peer Support", "Financial Aid", "Practical Help",
-  "Legal & Employment", "Information & Education", "Carer Support",
-  "Wellness & Nutrition", "End-of-Life Care",
-]);
+// Derive from the single source of truth
+const VALID_HELP_TYPES = new Set<string>(HELP_TYPES);
 
 const DIAGNOSIS_MAP: Record<string, string> = {
   Breast: "Breast Cancer",
@@ -67,6 +67,17 @@ const DIAGNOSIS_MAP: Record<string, string> = {
   Pancreatic: "Pancreatic Cancer",
   Brain: "Brain Cancer",
   Other: "Other / Unsure",
+};
+
+const TREATMENT_STAGE_MAP: Record<string, string> = {
+  All: "All",
+  "Newly Diagnosed": "Newly Diagnosed",
+  "During Treatment": "During Treatment",
+  "Post-Treatment": "Post-Treatment",
+  "Post Treatment": "Post-Treatment",
+  "Palliative / End-of-Life": "Palliative / End-of-Life",
+  "Palliative": "Palliative / End-of-Life",
+  "End-of-Life": "Palliative / End-of-Life",
 };
 
 function mapRowToResource(row: Record<string, string>): Resource {
@@ -109,6 +120,15 @@ function mapRowToResource(row: Record<string, string>): Resource {
   const phoneMatch = contact.match(/Tel:\s*([\d\s+\-()\[\]]+)/);
   const phone = phoneMatch ? phoneMatch[1].trim() : undefined;
 
+  const rawPatientCarer = (row["Patient / Carer / Both"] || "Both").trim();
+  const patientCarer: "Patient" | "Carer" | "Both" =
+    rawPatientCarer === "Patient" || rawPatientCarer === "Carer"
+      ? rawPatientCarer
+      : "Both";
+
+  const rawStage = (row["Treatment Stage"] || "All").trim();
+  const treatmentStage = TREATMENT_STAGE_MAP[rawStage] || "All";
+
   return {
     id: `sheet-${row["ID"]}`,
     name: row["Resource Name"] || "Unknown",
@@ -119,8 +139,12 @@ function mapRowToResource(row: Record<string, string>): Resource {
     locations,
     entireCountry,
     cities,
+    countries,
     url: row["Website URL"] || "",
     phone,
+    contact: contact || undefined,
+    patientCarer,
+    treatmentStage,
   };
 }
 
@@ -144,4 +168,26 @@ export async function getSheetCities(): Promise<string[]> {
       .forEach((c) => citySet.add(c));
   }
   return Array.from(citySet).sort();
+}
+
+/** Returns a map of city -> country, built from sheet data */
+export async function getSheetCityCountryMap(): Promise<Record<string, string>> {
+  const data = await request<SheetData>("/sheet-data");
+  const map: Record<string, string> = {};
+  for (const row of data.rows) {
+    const countries = (row["Countries Available"] || "")
+      .split(";")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const cities = (row["Cities Available"] || "")
+      .split(";")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (countries.length > 0) {
+      for (const city of cities) {
+        if (!map[city]) map[city] = countries[0];
+      }
+    }
+  }
+  return map;
 }

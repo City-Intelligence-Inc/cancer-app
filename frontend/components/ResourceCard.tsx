@@ -8,10 +8,38 @@ interface ResourceCardProps {
 }
 
 export default function ResourceCard({ resource }: ResourceCardProps) {
+  const locationLabel = resource.entireCountry
+    ? "Available UK-wide"
+    : resource.cities.length > 0
+    ? resource.cities.join(", ")
+    : resource.countries.length > 0
+    ? resource.countries.join(", ")
+    : null;
+
+  const cancerLabel =
+    resource.diagnoses.length > 0 ? resource.diagnoses.join(", ") : "All cancer types";
+
+  const eligibilityLabel =
+    resource.patientCarer === "Both"
+      ? "Patients & Carers"
+      : resource.patientCarer === "Patient"
+      ? "Patients only"
+      : "Carers only";
+
   return (
     <View style={styles.card}>
       <Text style={styles.name}>{resource.name}</Text>
       <Text style={styles.description}>{resource.description}</Text>
+
+      <View style={styles.meta}>
+        <Text style={styles.metaText}>{locationLabel}</Text>
+        <Text style={styles.metaDot}> · </Text>
+        <Text style={styles.metaText}>{eligibilityLabel}</Text>
+      </View>
+
+      {cancerLabel !== "All cancer types" && (
+        <Text style={styles.cancerText}>{cancerLabel}</Text>
+      )}
 
       <View style={styles.tags}>
         {resource.helpTypes.map((t) => (
@@ -35,6 +63,9 @@ export default function ResourceCard({ resource }: ResourceCardProps) {
           >
             <Text style={styles.linkText}>{resource.phone}</Text>
           </TouchableOpacity>
+        )}
+        {resource.contact && !resource.phone && (
+          <Text style={styles.contactText}>{resource.contact}</Text>
         )}
       </View>
     </View>
@@ -65,7 +96,25 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.textSecondary,
     lineHeight: 20,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  meta: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: spacing.xs,
+  },
+  metaText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  metaDot: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  cancerText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
   },
   tags: {
     flexDirection: "row",
@@ -87,6 +136,7 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: spacing.md,
   },
   link: {
@@ -96,5 +146,10 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.accent,
     fontWeight: "600",
+  },
+  contactText: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    paddingVertical: spacing.xs,
   },
 });

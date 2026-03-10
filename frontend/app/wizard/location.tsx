@@ -10,7 +10,7 @@ import {
 import { useRouter } from "expo-router";
 import StepContainer from "../../components/StepContainer";
 import { useSession } from "../../context/SessionContext";
-import { getSheetCities } from "../../services/api";
+import { getSheetCities, getSheetCityCountryMap } from "../../services/api";
 import { colors, fontSize, radius, spacing } from "../../utils/theme";
 
 export default function LocationStep() {
@@ -19,11 +19,15 @@ export default function LocationStep() {
   const [query, setQuery] = useState(answers.location ?? "");
   const [loading, setLoading] = useState(false);
   const [sheetCities, setSheetCities] = useState<string[]>([]);
+  const [cityCountryMap, setCityCountryMap] = useState<Record<string, string>>({});
   const [citiesLoading, setCitiesLoading] = useState(true);
 
   useEffect(() => {
-    getSheetCities()
-      .then(setSheetCities)
+    Promise.all([getSheetCities(), getSheetCityCountryMap()])
+      .then(([cities, map]) => {
+        setSheetCities(cities);
+        setCityCountryMap(map);
+      })
       .catch(() => setSheetCities([]))
       .finally(() => setCitiesLoading(false));
   }, []);
@@ -52,6 +56,10 @@ export default function LocationStep() {
     setLoading(true);
     try {
       await saveAnswer("location", matchedCity);
+      const country = cityCountryMap[matchedCity];
+      if (country) {
+        await saveAnswer("country", country);
+      }
       router.push("/wizard/diagnosis");
     } finally {
       setLoading(false);
@@ -107,7 +115,9 @@ export default function LocationStep() {
 
         {isValid && (
           <View style={styles.selectedBadge}>
-            <Text style={styles.selectedBadgeText}>✓ {matchedCity}</Text>
+            <Text style={styles.selectedBadgeText}>
+              {matchedCity}{cityCountryMap[matchedCity] ? `, ${cityCountryMap[matchedCity]}` : ""}
+            </Text>
           </View>
         )}
       </View>

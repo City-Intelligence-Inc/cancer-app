@@ -1,5 +1,5 @@
 import Constants from "expo-constants";
-import { Resource } from "../data/resources";
+import { Resource, HELP_TYPES } from "../data/resources";
 
 const API_URL: string =
   (Constants.expoConfig?.extra as Record<string, string> | undefined)
@@ -18,14 +18,13 @@ interface SessionUpdate {
   location?: string;
   diagnosis?: string;
   help_needed?: string[];
+  role?: string;
+  treatment_stage?: string;
+  country?: string;
 }
 
-// Sheet category names map 1-to-1 with app HELP_TYPES
-const VALID_HELP_TYPES = new Set([
-  "Mental Health", "Peer Support", "Financial Aid", "Practical Help",
-  "Legal & Employment", "Information & Education", "Carer Support",
-  "Wellness & Nutrition", "End-of-Life Care",
-]);
+// Derive from the single source of truth
+const VALID_HELP_TYPES = new Set<string>(HELP_TYPES);
 
 // Maps sheet cancer type names to app DIAGNOSES
 const DIAGNOSIS_MAP: Record<string, string> = {
@@ -40,6 +39,18 @@ const DIAGNOSIS_MAP: Record<string, string> = {
   Pancreatic: "Pancreatic Cancer",
   Brain: "Brain Cancer",
   Other: "Other / Unsure",
+};
+
+// Maps sheet treatment stage values to app TREATMENT_STAGES
+const TREATMENT_STAGE_MAP: Record<string, string> = {
+  All: "All",
+  "Newly Diagnosed": "Newly Diagnosed",
+  "During Treatment": "During Treatment",
+  "Post-Treatment": "Post-Treatment",
+  "Post Treatment": "Post-Treatment",
+  "Palliative / End-of-Life": "Palliative / End-of-Life",
+  "Palliative": "Palliative / End-of-Life",
+  "End-of-Life": "Palliative / End-of-Life",
 };
 
 function mapRowToResource(row: Record<string, string>): Resource {
@@ -82,6 +93,15 @@ function mapRowToResource(row: Record<string, string>): Resource {
   const phoneMatch = contact.match(/Tel:\s*([\d\s+\-()\[\]]+)/);
   const phone = phoneMatch ? phoneMatch[1].trim() : undefined;
 
+  const rawPatientCarer = (row["Patient / Carer / Both"] || "Both").trim();
+  const patientCarer: "Patient" | "Carer" | "Both" =
+    rawPatientCarer === "Patient" || rawPatientCarer === "Carer"
+      ? rawPatientCarer
+      : "Both";
+
+  const rawStage = (row["Treatment Stage"] || "All").trim();
+  const treatmentStage = TREATMENT_STAGE_MAP[rawStage] || "All";
+
   return {
     id: `sheet-${row["ID"]}`,
     name: row["Resource Name"] || "Unknown",
@@ -92,9 +112,18 @@ function mapRowToResource(row: Record<string, string>): Resource {
     locations,
     entireCountry,
     cities,
+    countries,
     url: row["Website URL"] || "",
     phone,
+    contact: contact || undefined,
+    patientCarer,
+    treatmentStage,
   };
+}
+
+interface SheetData {
+  headers: string[];
+  rows: Record<string, string>[];
 }
 
 export async function getSheetCities(): Promise<string[]> {
@@ -112,9 +141,28 @@ export async function getSheetCities(): Promise<string[]> {
   return Array.from(citySet).sort();
 }
 
-interface SheetData {
-  headers: string[];
-  rows: Record<string, string>[];
+/** Returns a map of city → country, built from sheet data */
+export async function getSheetCityCountryMap(): Promise<Record<string, string>> {
+  const res = await fetch(`${API_URL}/sheet-data`);
+  if (!res.ok) throw new Error(`Sheet fetch failed: ${res.status}`);
+  const data: SheetData = await res.json();
+  const map: Record<string, string> = {};
+  for (const row of data.rows) {
+    const countries = (row["Countries Available"] || "")
+      .split(";")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const cities = (row["Cities Available"] || "")
+      .split(";")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (countries.length > 0) {
+      for (const city of cities) {
+        if (!map[city]) map[city] = countries[0];
+      }
+    }
+  }
+  return map;
 }
 
 export async function getSheetResources(): Promise<Resource[]> {

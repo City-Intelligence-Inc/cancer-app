@@ -19,7 +19,7 @@ export default function AgePage() {
     setLoading(true);
     try {
       await saveAnswer("age", numericAge);
-      router.push("/wizard/location");
+      router.push("/wizard/role");
     } finally {
       setLoading(false);
     }

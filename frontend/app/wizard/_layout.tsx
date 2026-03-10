@@ -5,7 +5,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import ProgressBar from "../../components/ProgressBar";
 import { colors, spacing } from "../../utils/theme";
 
-const STEPS = ["/wizard/age", "/wizard/location", "/wizard/diagnosis", "/wizard/help-needed"];
+const STEPS = [
+  "/wizard/age",
+  "/wizard/role",
+  "/wizard/location",
+  "/wizard/diagnosis",
+  "/wizard/treatment-stage",
+  "/wizard/help-needed",
+];
 
 export default function WizardLayout() {
   const pathname = usePathname();

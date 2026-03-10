@@ -5,20 +5,20 @@ import { useRouter } from "next/navigation";
 import StepContainer from "@/components/StepContainer";
 import SelectableChip from "@/components/SelectableChip";
 import { useSession } from "@/context/SessionContext";
-import { DIAGNOSES } from "@/data/resources";
+import { TREATMENT_STAGES } from "@/data/resources";
 
-export default function DiagnosisPage() {
+export default function TreatmentStagePage() {
   const router = useRouter();
   const { answers, saveAnswer } = useSession();
-  const [selected, setSelected] = useState(answers.diagnosis ?? "");
+  const [selected, setSelected] = useState<string>(answers.treatment_stage ?? "");
   const [loading, setLoading] = useState(false);
 
   const handleNext = async () => {
     if (!selected) return;
     setLoading(true);
     try {
-      await saveAnswer("diagnosis", selected);
-      router.push("/wizard/treatment-stage");
+      await saveAnswer("treatment_stage", selected);
+      router.push("/wizard/help-needed");
     } finally {
       setLoading(false);
     }
@@ -26,19 +26,19 @@ export default function DiagnosisPage() {
 
   return (
     <StepContainer
-      heading="What is your diagnosis?"
-      description="Select the option that best describes your cancer type. This helps us find specialized resources."
+      heading="What stage of treatment are you at?"
+      description="This helps us find resources relevant to where you are in your journey."
       onNext={handleNext}
       nextDisabled={!selected}
       loading={loading}
     >
       <div className="flex flex-wrap gap-2">
-        {DIAGNOSES.map((d) => (
+        {TREATMENT_STAGES.map((s) => (
           <SelectableChip
-            key={d}
-            label={d}
-            selected={selected === d}
-            onClick={() => setSelected(selected === d ? "" : d)}
+            key={s}
+            label={s}
+            selected={selected === s}
+            onClick={() => setSelected(selected === s ? "" : s)}
           />
         ))}
       </div>

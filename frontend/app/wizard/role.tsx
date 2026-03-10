@@ -4,20 +4,20 @@ import { useRouter } from "expo-router";
 import StepContainer from "../../components/StepContainer";
 import SelectableChip from "../../components/SelectableChip";
 import { useSession } from "../../context/SessionContext";
-import { DIAGNOSES } from "../../data/resources";
+import { ROLES } from "../../data/resources";
 
-export default function DiagnosisStep() {
+export default function RoleStep() {
   const router = useRouter();
   const { answers, saveAnswer } = useSession();
-  const [selected, setSelected] = useState<string>(answers.diagnosis ?? "");
+  const [selected, setSelected] = useState<string>(answers.role ?? "");
   const [loading, setLoading] = useState(false);
 
   const handleNext = async () => {
     if (!selected) return;
     setLoading(true);
     try {
-      await saveAnswer("diagnosis", selected);
-      router.push("/wizard/treatment-stage");
+      await saveAnswer("role", selected as "Patient" | "Carer");
+      router.push("/wizard/location");
     } finally {
       setLoading(false);
     }
@@ -25,19 +25,19 @@ export default function DiagnosisStep() {
 
   return (
     <StepContainer
-      heading="What is your diagnosis?"
-      description="Select the option that best describes your cancer type. This helps us find specialized resources."
+      heading="Are you a patient or a carer?"
+      description="This helps us show resources designed for your situation."
       onNext={handleNext}
       nextDisabled={!selected}
       loading={loading}
     >
       <View style={styles.chips}>
-        {DIAGNOSES.map((d) => (
+        {ROLES.map((r) => (
           <SelectableChip
-            key={d}
-            label={d}
-            selected={selected === d}
-            onPress={() => setSelected(selected === d ? "" : d)}
+            key={r}
+            label={r}
+            selected={selected === r}
+            onPress={() => setSelected(selected === r ? "" : r)}
           />
         ))}
       </View>

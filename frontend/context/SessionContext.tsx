@@ -5,11 +5,14 @@ function generateLocalId() {
   return "local-" + Math.random().toString(36).slice(2, 10);
 }
 
-interface Answers {
+export interface Answers {
   age?: number;
   location?: string;
+  country?: string;
   diagnosis?: string;
   help_needed?: string[];
+  role?: "Patient" | "Carer";
+  treatment_stage?: string;
 }
 
 interface SessionContextValue {

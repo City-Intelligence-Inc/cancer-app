@@ -3,11 +3,14 @@
 import React, { createContext, useContext, useState, useCallback } from "react";
 import { createSession, updateSession } from "@/services/api";
 
-interface Answers {
+export interface Answers {
   age?: number;
   location?: string;
+  country?: string;
   diagnosis?: string;
   help_needed?: string[];
+  role?: "Patient" | "Carer";
+  treatment_stage?: string;
 }
 
 interface SessionContextValue {
@@ -24,8 +27,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [answers, setAnswers] = useState<Answers>({});
 
   const startSession = useCallback(async () => {
-    const session = await createSession();
-    setSessionId(session.sessionId);
+    try {
+      const session = await createSession();
+      setSessionId(session.sessionId);
+    } catch {
+      setSessionId("local-" + Math.random().toString(36).slice(2, 10));
+    }
     setAnswers({});
   }, []);
 
@@ -33,7 +40,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     async <K extends keyof Answers>(key: K, value: Answers[K]) => {
       if (!sessionId) throw new Error("No active session");
       setAnswers((prev) => ({ ...prev, [key]: value }));
-      await updateSession(sessionId, { [key]: value });
+      if (!sessionId.startsWith("local-")) {
+        await updateSession(sessionId, { [key]: value }).catch(() => {});
+      }
     },
     [sessionId]
   );

@@ -3,7 +3,14 @@
 import { usePathname } from "next/navigation";
 import ProgressBar from "@/components/ProgressBar";
 
-const STEPS = ["/wizard/age", "/wizard/location", "/wizard/diagnosis", "/wizard/help-needed"];
+const STEPS = [
+  "/wizard/age",
+  "/wizard/role",
+  "/wizard/location",
+  "/wizard/diagnosis",
+  "/wizard/treatment-stage",
+  "/wizard/help-needed",
+];
 
 export default function WizardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
