@@ -8,6 +8,7 @@ export interface Resource {
   locations: string[];
   entireCountry: boolean;
   cities: string[];
+  zipcodes?: string[];
   countries: string[];
   url: string;
   phone?: string;

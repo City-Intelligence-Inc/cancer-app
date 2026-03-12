@@ -21,6 +21,7 @@ interface SessionUpdate {
   role?: string;
   treatment_stage?: string;
   country?: string;
+  zipcode?: string;
 }
 
 // Derive from the single source of truth

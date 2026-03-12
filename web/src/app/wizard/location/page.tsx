@@ -10,6 +10,7 @@ export default function LocationPage() {
   const router = useRouter();
   const { answers, saveAnswer } = useSession();
   const [query, setQuery] = useState(answers.location ?? "");
+  const [zipcode, setZipcode] = useState(answers.zipcode ?? "");
   const [loading, setLoading] = useState(false);
   const [sheetCities, setSheetCities] = useState<string[]>([]);
   const [cityCountryMap, setCityCountryMap] = useState<Record<string, string>>({});
@@ -46,6 +47,9 @@ export default function LocationPage() {
       const country = cityCountryMap[matchedCity];
       if (country) {
         await saveAnswer("country", country);
+      }
+      if (zipcode.trim()) {
+        await saveAnswer("zipcode", zipcode.trim());
       }
       router.push("/wizard/diagnosis");
     } finally {
@@ -96,6 +100,22 @@ export default function LocationPage() {
           <span className="inline-block mt-2 bg-sage text-white text-sm font-semibold px-3 py-1 rounded-full">
             {matchedCity}{cityCountryMap[matchedCity] ? `, ${cityCountryMap[matchedCity]}` : ""}
           </span>
+        )}
+
+        {isValid && (
+          <div className="mt-6">
+            <label className="block text-sm font-medium text-text-secondary mb-2">
+              Postcode (optional)
+            </label>
+            <input
+              type="text"
+              value={zipcode}
+              onChange={(e) => setZipcode(e.target.value.toUpperCase())}
+              placeholder="e.g. SW1A 1AA"
+              autoComplete="off"
+              className="w-full bg-white border-2 border-border rounded-xl p-4 text-lg text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-sage transition-colors"
+            />
+          </div>
         )}
       </div>
     </StepContainer>

@@ -17,6 +17,7 @@ export default function LocationStep() {
   const router = useRouter();
   const { answers, saveAnswer } = useSession();
   const [query, setQuery] = useState(answers.location ?? "");
+  const [zipcode, setZipcode] = useState(answers.zipcode ?? "");
   const [loading, setLoading] = useState(false);
   const [sheetCities, setSheetCities] = useState<string[]>([]);
   const [cityCountryMap, setCityCountryMap] = useState<Record<string, string>>({});
@@ -59,6 +60,9 @@ export default function LocationStep() {
       const country = cityCountryMap[matchedCity];
       if (country) {
         await saveAnswer("country", country);
+      }
+      if (zipcode.trim()) {
+        await saveAnswer("zipcode", zipcode.trim());
       }
       router.push("/wizard/diagnosis");
     } finally {
@@ -120,6 +124,22 @@ export default function LocationStep() {
             </Text>
           </View>
         )}
+
+        {isValid && (
+          <View style={styles.zipcodeSection}>
+            <Text style={styles.zipcodeLabel}>Postcode (optional)</Text>
+            <TextInput
+              style={styles.input}
+              value={zipcode}
+              onChangeText={setZipcode}
+              placeholder="e.g. SW1A 1AA"
+              placeholderTextColor={colors.textSecondary}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              returnKeyType="done"
+            />
+          </View>
+        )}
       </View>
     </StepContainer>
   );
@@ -178,5 +198,14 @@ const styles = StyleSheet.create({
     color: colors.chipSelectedText,
     fontWeight: "600",
     fontSize: fontSize.sm,
+  },
+  zipcodeSection: {
+    marginTop: spacing.lg,
+  },
+  zipcodeLabel: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    fontWeight: "500",
+    marginBottom: spacing.xs,
   },
 });

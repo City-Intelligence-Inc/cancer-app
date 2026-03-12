@@ -7,6 +7,7 @@ export interface Answers {
   age?: number;
   location?: string;
   country?: string;
+  zipcode?: string;
   diagnosis?: string;
   help_needed?: string[];
   role?: "Patient" | "Carer";

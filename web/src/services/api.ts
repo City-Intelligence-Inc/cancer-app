@@ -18,6 +18,7 @@ interface SessionUpdate {
   role?: string;
   treatment_stage?: string;
   country?: string;
+  zipcode?: string;
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {

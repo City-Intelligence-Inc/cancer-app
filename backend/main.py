@@ -42,6 +42,7 @@ class SessionUpdate(BaseModel):
     age: Optional[int] = None
     location: Optional[str] = None
     country: Optional[str] = None
+    zipcode: Optional[str] = None
     diagnosis: Optional[str] = None
     help_needed: Optional[List[str]] = None
     role: Optional[str] = None
@@ -303,6 +304,7 @@ class CreateResource(BaseModel):
     entireCountry: bool = False
     countries: List[str] = []
     cities: List[str] = []
+    zipcodes: List[str] = []
     minAge: Optional[int] = None
     maxAge: Optional[int] = None
     patientCarer: str = "Both"
@@ -339,6 +341,7 @@ def create_resource(body: CreateResource):
         "entireCountry": body.entireCountry,
         "countries": body.countries,
         "cities": body.cities,
+        "zipcodes": body.zipcodes,
         "patientCarer": body.patientCarer,
         "treatmentStage": body.treatmentStage,
         "websiteUrl": body.websiteUrl,

@@ -81,6 +81,7 @@ curl -X POST https://iutm2kyhqq.us-east-1.awsapprunner.com/resources \
     "entireCountry": true,
     "countries": ["United Kingdom"],
     "cities": ["London", "Edinburgh", "Glasgow", "Manchester", "Birmingham"],
+    "zipcodes": ["EC1A 1BB", "EH1 1YZ", "G1 1AA", "M1 1AE", "B1 1BB"],
     "patientCarer": "Both",
     "treatmentStage": "All",
     "websiteUrl": "https://www.bowelcanceruk.org.uk",
@@ -108,6 +109,7 @@ curl -X POST https://iutm2kyhqq.us-east-1.awsapprunner.com/resources \
 - [ ] Description is accurate and concise
 - [ ] Help types correctly categorized
 - [ ] Cancer types correctly specified (use "All" if not cancer-specific)
+- [ ] Zipcodes/postcodes captured where relevant (use representative postcodes for each city)
 - [ ] User has approved the resource before adding
 
 ## Deploy Commands
