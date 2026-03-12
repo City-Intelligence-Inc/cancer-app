@@ -167,15 +167,23 @@ export async function getSheetResources(): Promise<Resource[]> {
 }
 
 export async function getSheetCities(): Promise<string[]> {
-  const data = await request<SheetData>("/sheet-data");
+  const [sheetData, dbData] = await Promise.all([
+    request<SheetData>("/sheet-data"),
+    request<{ resources: { cities?: string[] }[] }>("/resources"),
+  ]);
   const citySet = new Set<string>();
-  for (const row of data.rows) {
+  for (const row of sheetData.rows) {
     (row["Cities Available"] || "")
       .split(";")
       .map((s) => s.trim())
       .filter(Boolean)
       .forEach((c) => citySet.add(c));
   }
+  for (const r of dbData.resources) {
+    (r.cities || []).forEach((c) => citySet.add(c));
+  }
+  citySet.delete("National");
+  citySet.delete("Online");
   return Array.from(citySet).sort();
 }
 
@@ -208,11 +216,14 @@ export async function getSheetDiagnoses(): Promise<string[]> {
   return sorted;
 }
 
-/** Returns a map of city -> country, built from sheet data */
+/** Returns a map of city -> country, built from sheet + DynamoDB data */
 export async function getSheetCityCountryMap(): Promise<Record<string, string>> {
-  const data = await request<SheetData>("/sheet-data");
+  const [sheetData, dbData] = await Promise.all([
+    request<SheetData>("/sheet-data"),
+    request<{ resources: { cities?: string[]; countries?: string[] }[] }>("/resources"),
+  ]);
   const map: Record<string, string> = {};
-  for (const row of data.rows) {
+  for (const row of sheetData.rows) {
     const countries = (row["Countries Available"] || "")
       .split(";")
       .map((s) => s.trim())
@@ -225,6 +236,12 @@ export async function getSheetCityCountryMap(): Promise<Record<string, string>> 
       for (const city of cities) {
         if (!map[city]) map[city] = countries[0];
       }
+    }
+  }
+  for (const r of dbData.resources) {
+    const countries = r.countries || [];
+    for (const city of r.cities || []) {
+      if (!map[city] && countries.length > 0) map[city] = countries[0];
     }
   }
   return map;

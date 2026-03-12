@@ -295,16 +295,64 @@ async def sync_resources():
     }
 
 
+class CreateResource(BaseModel):
+    name: str
+    description: str
+    helpTypes: List[str]
+    cancerTypes: List[str] = ["All"]
+    entireCountry: bool = False
+    countries: List[str] = []
+    cities: List[str] = []
+    minAge: Optional[int] = None
+    maxAge: Optional[int] = None
+    patientCarer: str = "Both"
+    treatmentStage: str = "All"
+    websiteUrl: str = ""
+    contact: str = ""
+
+
 @app.get("/resources")
 def get_resources():
     """Return all resources from DynamoDB."""
     result = resources_table.scan()
     items = result.get("Items", [])
-    # Handle pagination
     while "LastEvaluatedKey" in result:
         result = resources_table.scan(ExclusiveStartKey=result["LastEvaluatedKey"])
         items.extend(result.get("Items", []))
     return {"resources": items, "count": len(items)}
+
+
+@app.post("/resources", status_code=201)
+def create_resource(body: CreateResource):
+    """Add a new resource directly to DynamoDB."""
+    # Auto-increment ID: find max existing ID
+    all_items = resources_table.scan(ProjectionExpression="resourceId")
+    all_ids = [int(i["resourceId"]) for i in all_items.get("Items", []) if i["resourceId"].isdigit()]
+    next_id = str(max(all_ids) + 1) if all_ids else "1"
+
+    item: dict[str, Any] = {
+        "resourceId": next_id,
+        "name": body.name,
+        "description": body.description,
+        "helpTypes": body.helpTypes,
+        "cancerTypes": body.cancerTypes,
+        "entireCountry": body.entireCountry,
+        "countries": body.countries,
+        "cities": body.cities,
+        "patientCarer": body.patientCarer,
+        "treatmentStage": body.treatmentStage,
+        "websiteUrl": body.websiteUrl,
+        "contact": body.contact,
+        "syncedAt": datetime.now(timezone.utc).isoformat(),
+        "source": "manual",
+    }
+    if body.minAge is not None:
+        item["minAge"] = Decimal(str(body.minAge))
+    if body.maxAge is not None:
+        item["maxAge"] = Decimal(str(body.maxAge))
+
+    resources_table.put_item(Item=item)
+    return {"status": "ok", "resourceId": next_id, "resource": item}
 
 
 @app.get("/sync-status")

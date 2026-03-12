@@ -138,17 +138,29 @@ interface SheetData {
 }
 
 export async function getSheetCities(): Promise<string[]> {
-  const res = await fetch(`${API_URL}/sheet-data`);
-  if (!res.ok) throw new Error(`Sheet fetch failed: ${res.status}`);
-  const data: SheetData = await res.json();
+  const [sheetRes, dbRes] = await Promise.all([
+    fetch(`${API_URL}/sheet-data`),
+    fetch(`${API_URL}/resources`),
+  ]);
   const citySet = new Set<string>();
-  for (const row of data.rows) {
-    (row["Cities Available"] || "")
-      .split(";")
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .forEach((c) => citySet.add(c));
+  if (sheetRes.ok) {
+    const data: SheetData = await sheetRes.json();
+    for (const row of data.rows) {
+      (row["Cities Available"] || "")
+        .split(";")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .forEach((c) => citySet.add(c));
+    }
   }
+  if (dbRes.ok) {
+    const dbData: { resources: { cities?: string[] }[] } = await dbRes.json();
+    for (const r of dbData.resources) {
+      (r.cities || []).forEach((c) => citySet.add(c));
+    }
+  }
+  citySet.delete("National");
+  citySet.delete("Online");
   return Array.from(citySet).sort();
 }
 
@@ -174,24 +186,37 @@ export async function getSheetDiagnoses(): Promise<string[]> {
   return sorted;
 }
 
-/** Returns a map of city → country, built from sheet data */
+/** Returns a map of city → country, built from sheet + DynamoDB data */
 export async function getSheetCityCountryMap(): Promise<Record<string, string>> {
-  const res = await fetch(`${API_URL}/sheet-data`);
-  if (!res.ok) throw new Error(`Sheet fetch failed: ${res.status}`);
-  const data: SheetData = await res.json();
+  const [sheetRes, dbRes] = await Promise.all([
+    fetch(`${API_URL}/sheet-data`),
+    fetch(`${API_URL}/resources`),
+  ]);
   const map: Record<string, string> = {};
-  for (const row of data.rows) {
-    const countries = (row["Countries Available"] || "")
-      .split(";")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const cities = (row["Cities Available"] || "")
-      .split(";")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (countries.length > 0) {
-      for (const city of cities) {
-        if (!map[city]) map[city] = countries[0];
+  if (sheetRes.ok) {
+    const data: SheetData = await sheetRes.json();
+    for (const row of data.rows) {
+      const countries = (row["Countries Available"] || "")
+        .split(";")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const cities = (row["Cities Available"] || "")
+        .split(";")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (countries.length > 0) {
+        for (const city of cities) {
+          if (!map[city]) map[city] = countries[0];
+        }
+      }
+    }
+  }
+  if (dbRes.ok) {
+    const dbData: { resources: { cities?: string[]; countries?: string[] }[] } = await dbRes.json();
+    for (const r of dbData.resources) {
+      const countries = r.countries || [];
+      for (const city of r.cities || []) {
+        if (!map[city] && countries.length > 0) map[city] = countries[0];
       }
     }
   }
