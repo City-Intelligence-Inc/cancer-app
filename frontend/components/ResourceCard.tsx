@@ -17,7 +17,7 @@ export default function ResourceCard({ resource }: ResourceCardProps) {
     : null;
 
   const cancerLabel =
-    resource.diagnoses.length > 0 ? resource.diagnoses.join(", ") : "All cancer types";
+    resource.diagnoses.length > 0 ? resource.diagnoses.join(", ") : null;
 
   const eligibilityLabel =
     resource.patientCarer === "Both"
@@ -37,7 +37,7 @@ export default function ResourceCard({ resource }: ResourceCardProps) {
         <Text style={styles.metaText}>{eligibilityLabel}</Text>
       </View>
 
-      {cancerLabel !== "All cancer types" && (
+      {cancerLabel && (
         <Text style={styles.cancerText}>{cancerLabel}</Text>
       )}
 

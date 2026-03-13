@@ -1,413 +1,883 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  FlatList,
-  StyleSheet,
-  ActivityIndicator,
-  Linking,
+  View, Text, TextInput, TouchableOpacity, FlatList, ScrollView,
+  StyleSheet, ActivityIndicator, Linking, Dimensions, Platform, Image,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { useSession } from "../context/SessionContext";
-import { getSheetCities, getSheetCityCountryMap, getSheetResources } from "../services/api";
+import { getSheetCities, getSheetCityCountryMap, getSheetDiagnoses, getAllResources } from "../services/api";
 import { Resource } from "../data/resources";
-import ResourceCard from "../components/ResourceCard";
-import { colors, fontSize, radius, spacing } from "../utils/theme";
 
-// ── Location picker ─────────────────────────────────────────────────
+// ─── Tokens ──────────────────────────────────────────────────────────
 
-function LocationPicker({
-  onSelect,
-}: {
-  onSelect: (city: string) => void;
-}) {
-  const [query, setQuery] = useState("");
-  const [cities, setCities] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+const ORANGE  = "#F47B4B";
+const YELLOW  = "#F7C548";
+const CREAM   = "#F9F2E7";
+const WHITE   = "#FFFFFF";
+const L1      = "#1C1C1E";   // primary label
+const L2      = "#6C6C70";   // secondary label
+const L3      = "#AEAEB2";   // tertiary label
+const SEP     = "#E5E5EA";
+const FILL    = "#F2F2F7";
+const WARM    = "#5B3A29";
+
+const W        = Dimensions.get("window").width;
+const H_PAD    = 20;
+const CARD_W   = Math.round(W * 0.74);
+const NAV_H    = 60;
+
+// ─── Cancer types (comprehensive hardcoded list) ───────────────────
+
+const ALL_DIAGNOSES = [
+  "Bladder Cancer", "Blood / Leukaemia", "Bowel / Colorectal Cancer",
+  "Brain Cancer", "Breast Cancer", "Gynaecological Cancer",
+  "Head & Neck Cancer", "Kidney Cancer", "Liver Cancer", "Lung Cancer",
+  "Lymphoma", "Mesothelioma", "Myeloma", "Ovarian Cancer",
+  "Pancreatic Cancer", "Prostate Cancer", "Sarcoma", "Skin Cancer",
+  "Thyroid Cancer", "Other / Unsure",
+];
+
+// ─── Category config ─────────────────────────────────────────────────
+
+interface CatMeta { label: string; accent: string }
+const CATS: Record<string, CatMeta> = {
+  "Mental Health":           { label: "Mental Health",     accent: "#C0392B" },
+  "Peer Support":            { label: "Peer Support",      accent: "#1A7A6E" },
+  "Financial Aid":           { label: "Financial Support", accent: "#9A7000" },
+  "Practical Help":          { label: "Practical Help",    accent: "#C85E20" },
+  "Legal & Employment":      { label: "Legal & Work",      accent: "#4A3FAA" },
+  "Information & Education": { label: "Information",       accent: "#0066BB" },
+  "Carer Support":           { label: "Carer Support",     accent: "#1A7A6E" },
+  "Wellness & Nutrition":    { label: "Wellness",          accent: "#2E7D32" },
+  "End-of-Life Care":        { label: "End of Life",       accent: "#5D4037" },
+};
+const CAT_ORDER = [
+  "Mental Health", "Peer Support", "Financial Aid", "Practical Help",
+  "Information & Education", "Carer Support", "Wellness & Nutrition",
+  "Legal & Employment", "End-of-Life Care",
+];
+
+// ─── Types ────────────────────────────────────────────────────────────
+
+interface UserProfile { city: string; country: string; zipcode: string; diagnosis: string }
+type Tab = "home" | "search" | "profile";
+
+// ─── Onboarding ──────────────────────────────────────────────────────
+
+function Onboarding({ onDone }: { onDone: (p: UserProfile) => void }) {
+  const insets = useSafeAreaInsets();
+
+  const [cityQ,    setCityQ]    = useState("");
+  const [cities,   setCities]   = useState<string[]>([]);
+  const [city,     setCity]     = useState<string | null>(null);
+  const [citiesLoading, setCitiesLoading] = useState(true);
+  const [cityCountryMap, setCityCountryMap] = useState<Record<string, string>>({});
+
+  const [diagQ,    setDiagQ]    = useState("");
+  const [sheetDiags, setSheetDiags] = useState<string[]>([]);
+  const [diagsLoading, setDiagsLoading] = useState(false);
+  const [diag,     setDiag]     = useState<string | null>(null);
+
+  const [zip,      setZip]      = useState("");
+
+  // Merge hardcoded + sheet diagnoses
+  const allDiags = useMemo(() => {
+    const merged = new Set([...ALL_DIAGNOSES, ...sheetDiags]);
+    const sorted = Array.from(merged).filter(d => d !== "Other / Unsure").sort();
+    return [...sorted, "Other / Unsure"];
+  }, [sheetDiags]);
 
   useEffect(() => {
-    getSheetCities()
-      .then(setCities)
-      .catch(() => setCities([]))
-      .finally(() => setLoading(false));
+    Promise.all([getSheetCities(), getSheetCityCountryMap()])
+      .then(([c, map]) => { setCities(c); setCityCountryMap(map); })
+      .catch(() => {})
+      .finally(() => setCitiesLoading(false));
   }, []);
 
-  const suggestions = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    return cities.filter((c) => c.toLowerCase().startsWith(q)).slice(0, 8);
-  }, [query, cities]);
+  useEffect(() => {
+    if (!city) return;
+    setDiagsLoading(true);
+    getSheetDiagnoses()
+      .then(setSheetDiags)
+      .catch(() => {})
+      .finally(() => setDiagsLoading(false));
+  }, [city]);
+
+  const citySugg = useMemo(() => {
+    const q = cityQ.trim().toLowerCase();
+    if (!q || city) return [];
+    return cities.filter(c => c.toLowerCase().startsWith(q)).slice(0, 8);
+  }, [cityQ, cities, city]);
+
+  // Diagnoses: show all when empty, filter when typing
+  const diagOptions = useMemo(() => {
+    const q = diagQ.trim().toLowerCase();
+    if (!q) return allDiags;
+    const filtered = allDiags.filter(d =>
+      d !== "Other / Unsure" && d.toLowerCase().includes(q)
+    );
+    if (allDiags.includes("Other / Unsure")) filtered.push("Other / Unsure");
+    return filtered;
+  }, [diagQ, allDiags]);
+
+  const ready = !!city && !!diag;
 
   return (
-    <SafeAreaView style={pickerStyles.container}>
-      <View style={pickerStyles.content}>
-        <Text style={pickerStyles.logo}>Canopy</Text>
-        <Text style={pickerStyles.heading}>Where are you located?</Text>
-        <Text style={pickerStyles.sub}>
-          We'll show you support resources available near you.
-        </Text>
+    <View style={{ flex: 1, backgroundColor: CREAM }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingHorizontal: H_PAD, paddingTop: insets.top + 32, paddingBottom: insets.bottom + 40 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Logo */}
+        <Image
+          source={require("../assets/canopy-logo.png")}
+          style={{ width: 140, height: 140, alignSelf: "center", marginBottom: 16 }}
+          resizeMode="contain"
+        />
+        <Text style={ob.tagline}>Cancer support,{"\n"}close to home.</Text>
 
-        <View style={pickerStyles.inputWrap}>
-          <Text style={pickerStyles.inputIcon}>📍</Text>
-          <TextInput
-            style={pickerStyles.input}
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Enter your city…"
-            placeholderTextColor={colors.textSecondary}
-            autoFocus
-            autoCapitalize="words"
-            autoCorrect={false}
-          />
-          {loading && (
-            <ActivityIndicator size="small" color={colors.primary} style={{ marginRight: spacing.sm }} />
-          )}
-        </View>
+        <View style={ob.divider} />
 
-        {suggestions.length > 0 && (
-          <View style={pickerStyles.dropdown}>
-            {suggestions.map((city, i) => (
-              <TouchableOpacity
-                key={city}
-                style={[pickerStyles.item, i === suggestions.length - 1 && pickerStyles.itemLast]}
-                onPress={() => onSelect(city)}
-                activeOpacity={0.7}
-              >
-                <Text style={pickerStyles.itemIcon}>📍</Text>
-                <Text style={pickerStyles.itemText}>{city}</Text>
-              </TouchableOpacity>
-            ))}
+        {/* City */}
+        <Text style={ob.label}>Where are you located?</Text>
+        {city ? (
+          <View style={ob.confirmedRow}>
+            <View style={ob.confirmedChip}>
+              <Text style={ob.confirmedChipText}>{city}</Text>
+            </View>
+            <TouchableOpacity onPress={() => { setCity(null); setCityQ(""); setDiag(null); setDiagQ(""); }} hitSlop={8}>
+              <Text style={ob.change}>Change</Text>
+            </TouchableOpacity>
           </View>
+        ) : (
+          <>
+            <View style={ob.field}>
+              <TextInput
+                style={ob.fieldInput}
+                value={cityQ}
+                onChangeText={setCityQ}
+                placeholder="Your city"
+                placeholderTextColor={L3}
+                autoCapitalize="words"
+                autoCorrect={false}
+              />
+              {citiesLoading && <ActivityIndicator size="small" color={ORANGE} style={{ marginRight: 12 }} />}
+            </View>
+            {citySugg.length > 0 && (
+              <View style={ob.list}>
+                {citySugg.map((c, i) => (
+                  <TouchableOpacity
+                    key={c}
+                    style={[ob.listRow, i < citySugg.length - 1 && ob.listRowBorder]}
+                    onPress={() => { setCity(c); setCityQ(c); }}
+                    activeOpacity={0.55}
+                  >
+                    <Text style={ob.listRowText}>{c}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </>
         )}
-      </View>
-    </SafeAreaView>
+
+        {/* Diagnosis */}
+        {city && (
+          <>
+            <View style={[ob.divider, { marginTop: 28 }]} />
+            <Text style={ob.label}>What is your diagnosis?</Text>
+
+            {diag ? (
+              <View style={ob.confirmedRow}>
+                <View style={[ob.confirmedChip, { backgroundColor: "#FFF0E8", borderColor: ORANGE }]}>
+                  <Text style={[ob.confirmedChipText, { color: ORANGE }]}>{diag}</Text>
+                </View>
+                <TouchableOpacity onPress={() => setDiag(null)} hitSlop={8}>
+                  <Text style={ob.change}>Change</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                <View style={[ob.field, { marginBottom: 10 }]}>
+                  <TextInput
+                    style={ob.fieldInput}
+                    value={diagQ}
+                    onChangeText={setDiagQ}
+                    placeholder="Search or select below"
+                    placeholderTextColor={L3}
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                  />
+                  {diagsLoading && <ActivityIndicator size="small" color={ORANGE} style={{ marginRight: 12 }} />}
+                </View>
+                <View style={ob.chipGrid}>
+                  {diagOptions.map(d => (
+                    <TouchableOpacity
+                      key={d}
+                      onPress={() => setDiag(d)}
+                      style={[ob.diagChip, d === "Other / Unsure" && ob.diagChipMuted]}
+                      activeOpacity={0.65}
+                    >
+                      <Text style={[ob.diagChipText, d === "Other / Unsure" && { color: L2 }]}>{d}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
+          </>
+        )}
+
+        {/* Postcode */}
+        {city && diag && (
+          <>
+            <View style={[ob.divider, { marginTop: 28 }]} />
+            <View style={ob.postcodeHeader}>
+              <Text style={ob.label}>Postcode</Text>
+              <Text style={ob.optional}>optional — for closer matches</Text>
+            </View>
+            <View style={ob.field}>
+              <TextInput
+                style={ob.fieldInput}
+                value={zip}
+                onChangeText={setZip}
+                placeholder="e.g. SW1A 1AA"
+                placeholderTextColor={L3}
+                autoCapitalize="characters"
+                autoCorrect={false}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={[ob.cta, !ready && { opacity: 0.38 }]}
+              disabled={!ready}
+              onPress={() => onDone({ city: city!, country: cityCountryMap[city!] ?? "", zipcode: zip.trim(), diagnosis: diag! })}
+              activeOpacity={0.82}
+            >
+              <Text style={ob.ctaText}>Find support</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
-const pickerStyles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { flex: 1, padding: spacing.lg, paddingTop: spacing.xxl },
-  logo: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: colors.primary,
-    marginBottom: spacing.xxl,
-  },
-  heading: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: colors.text,
-    marginBottom: spacing.sm,
-  },
-  sub: {
-    fontSize: fontSize.body,
-    color: colors.textSecondary,
-    lineHeight: 24,
-    marginBottom: spacing.lg,
-  },
-  inputWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.white,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-  },
-  inputIcon: { fontSize: 18, marginRight: spacing.sm },
-  input: {
-    flex: 1,
-    paddingVertical: spacing.md,
-    fontSize: fontSize.lg,
-    color: colors.text,
-  },
-  dropdown: {
-    marginTop: 4,
-    backgroundColor: colors.white,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    overflow: "hidden",
-  },
-  item: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    gap: spacing.sm,
-  },
-  itemLast: { borderBottomWidth: 0 },
-  itemIcon: { fontSize: 14 },
-  itemText: {
-    fontSize: fontSize.body,
-    color: colors.text,
-    fontWeight: "500",
-  },
+const ob = StyleSheet.create({
+  tagline:        { fontSize: 22, fontWeight: "600", color: WARM, lineHeight: 30, marginBottom: 4 },
+  divider:        { height: StyleSheet.hairlineWidth, backgroundColor: SEP, marginVertical: 24 },
+  label:          { fontSize: 17, fontWeight: "600", color: L1, marginBottom: 12 },
+  optional:       { fontSize: 13, color: L3 },
+  postcodeHeader: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 },
+
+  field:      { flexDirection: "row", alignItems: "center", backgroundColor: WHITE, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: SEP, marginBottom: 0 },
+  fieldInput: { flex: 1, paddingHorizontal: 16, paddingVertical: 14, fontSize: 17, color: L1 },
+
+  list:         { marginTop: 4, backgroundColor: WHITE, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: SEP, overflow: "hidden" },
+  listRow:      { paddingHorizontal: 16, paddingVertical: 14 },
+  listRowBorder:{ borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: SEP },
+  listRowText:  { fontSize: 17, color: L1 },
+
+  confirmedRow:     { flexDirection: "row", alignItems: "center", gap: 12 },
+  confirmedChip:    { backgroundColor: ORANGE, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1.5, borderColor: ORANGE },
+  confirmedChipText:{ fontSize: 15, fontWeight: "600", color: WHITE },
+  change:           { fontSize: 15, color: ORANGE, fontWeight: "500" },
+
+  chipGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  diagChip:      { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20, backgroundColor: WHITE, borderWidth: StyleSheet.hairlineWidth, borderColor: SEP },
+  diagChipMuted: { backgroundColor: FILL },
+  diagChipText:  { fontSize: 14, fontWeight: "500", color: L1 },
+
+  cta:     { marginTop: 28, backgroundColor: ORANGE, borderRadius: 14, paddingVertical: 17, alignItems: "center" },
+  ctaText: { fontSize: 17, fontWeight: "700", color: WHITE },
 });
 
-// ── Coming soon ──────────────────────────────────────────────────────
+// ─── Feed card (horizontal scroll) ───────────────────────────────────
 
-function ComingSoon({ city, onChangeCity, onAdvancedSearch }: {
-  city: string;
-  onChangeCity: () => void;
-  onAdvancedSearch: () => void;
-}) {
+function FeedCard({ resource, accent }: { resource: Resource; accent: string }) {
   return (
-    <SafeAreaView style={comingStyles.container}>
-      <View style={comingStyles.header}>
-        <Text style={comingStyles.logo}>Canopy</Text>
-        <TouchableOpacity style={comingStyles.locationBtn} onPress={onChangeCity}>
-          <Text style={comingStyles.locationIcon}>📍</Text>
-          <Text style={comingStyles.locationText}>{city}</Text>
-          <Text style={comingStyles.chevron}>›</Text>
-        </TouchableOpacity>
+    <TouchableOpacity
+      style={[fdc.card, { width: CARD_W }]}
+      onPress={() => Linking.openURL(resource.url).catch(() => {})}
+      activeOpacity={0.88}
+    >
+      <View style={[fdc.bar, { backgroundColor: accent }]} />
+      <View style={fdc.body}>
+        <Text style={fdc.name} numberOfLines={2}>{resource.name}</Text>
+        <Text style={fdc.desc} numberOfLines={3}>{resource.description}</Text>
+        <View style={fdc.footer}>
+          <Text style={fdc.location}>
+            {resource.entireCountry ? "UK-wide" : resource.cities.slice(0, 2).join(", ")}
+          </Text>
+          <Text style={[fdc.visitLink, { color: accent }]}>Visit ›</Text>
+        </View>
       </View>
-
-      <View style={comingStyles.body}>
-        <Text style={comingStyles.emoji}>🌱</Text>
-        <Text style={comingStyles.title}>Coming soon to {city}</Text>
-        <Text style={comingStyles.sub}>
-          We're working on adding support resources in your area. Check back soon — we're growing fast.
-        </Text>
-        <TouchableOpacity style={comingStyles.searchBtn} onPress={onAdvancedSearch}>
-          <Text style={comingStyles.searchBtnText}>Search all resources</Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+    </TouchableOpacity>
   );
 }
 
-const comingStyles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.white,
-  },
-  logo: { fontSize: 18, fontWeight: "800", color: colors.primary },
-  locationBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.background,
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    gap: 4,
-  },
-  locationIcon: { fontSize: 13 },
-  locationText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.text },
-  chevron: { fontSize: 18, color: colors.textSecondary, lineHeight: 20 },
-  body: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
-  emoji: { fontSize: 64, marginBottom: spacing.lg },
-  title: { fontSize: 24, fontWeight: "800", color: colors.text, textAlign: "center", marginBottom: spacing.md },
-  sub: { fontSize: fontSize.body, color: colors.textSecondary, textAlign: "center", lineHeight: 24, marginBottom: spacing.xl },
-  searchBtn: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.md,
-  },
-  searchBtnText: { color: colors.white, fontWeight: "700", fontSize: fontSize.body },
+const fdc = StyleSheet.create({
+  card:      { backgroundColor: WHITE, borderRadius: 16, marginRight: 12, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 10, elevation: 3 },
+  bar:       { height: 4 },
+  body:      { padding: 16 },
+  name:      { fontSize: 16, fontWeight: "700", color: L1, lineHeight: 22, marginBottom: 6 },
+  desc:      { fontSize: 13, color: L2, lineHeight: 18, marginBottom: 14 },
+  footer:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  location:  { fontSize: 12, color: L3 },
+  visitLink: { fontSize: 13, fontWeight: "700" },
 });
 
-// ── Feed ─────────────────────────────────────────────────────────────
+// ─── Search result card (vertical) ───────────────────────────────────
 
-function Feed({
-  city,
-  resources,
-  onChangeCity,
-  onAdvancedSearch,
-}: {
-  city: string;
-  resources: Resource[];
-  onChangeCity: () => void;
-  onAdvancedSearch: () => void;
+function SearchCard({ resource }: { resource: Resource }) {
+  const cat    = resource.helpTypes[0] ?? null;
+  const accent = cat ? (CATS[cat]?.accent ?? ORANGE) : ORANGE;
+  const label  = cat ? (CATS[cat]?.label ?? cat) : null;
+
+  return (
+    <TouchableOpacity
+      style={[src.card, { borderLeftColor: accent }]}
+      onPress={() => Linking.openURL(resource.url).catch(() => {})}
+      activeOpacity={0.88}
+    >
+      <View style={src.top}>
+        <Text style={src.name} numberOfLines={1}>{resource.name}</Text>
+        {label && <Text style={[src.catLabel, { color: accent }]}>{label}</Text>}
+      </View>
+      <Text style={src.desc} numberOfLines={2}>{resource.description}</Text>
+      <View style={src.foot}>
+        <Text style={src.loc}>{resource.entireCountry ? "UK-wide" : resource.cities.slice(0, 2).join(", ")}</Text>
+        <Text style={[src.link, { color: accent }]}>Visit website</Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+const src = StyleSheet.create({
+  card: { backgroundColor: WHITE, borderRadius: 12, padding: 16, marginBottom: 10, borderLeftWidth: 3, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 },
+  top:  { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 5 },
+  name: { fontSize: 16, fontWeight: "700", color: L1, flex: 1 },
+  catLabel: { fontSize: 12, fontWeight: "600", marginTop: 2 },
+  desc: { fontSize: 14, color: L2, lineHeight: 20, marginBottom: 10 },
+  foot: { flexDirection: "row", justifyContent: "space-between" },
+  loc:  { fontSize: 12, color: L3 },
+  link: { fontSize: 13, fontWeight: "600" },
+});
+
+// ─── Section row ─────────────────────────────────────────────────────
+
+function SectionRow({ label, accent, resources, isFeatured }: {
+  label: string; accent?: string; resources: Resource[]; isFeatured?: boolean;
 }) {
-  const header = (
+  const color = accent ?? ORANGE;
+  return (
+    <View style={srow.wrap}>
+      <View style={srow.header}>
+        <Text style={srow.title}>{label}</Text>
+        <Text style={[srow.count, { color }]}>{resources.length}</Text>
+      </View>
+      <FlatList
+        horizontal
+        data={resources}
+        keyExtractor={r => r.id}
+        renderItem={({ item }) => {
+          const cat    = isFeatured ? (item.helpTypes[0] ?? null) : null;
+          const itemAccent = isFeatured
+            ? (cat ? (CATS[cat]?.accent ?? ORANGE) : ORANGE)
+            : color;
+          return <FeedCard resource={item} accent={itemAccent} />;
+        }}
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingLeft: H_PAD, paddingRight: 8 }}
+        snapToInterval={CARD_W + 12}
+        decelerationRate="fast"
+      />
+    </View>
+  );
+}
+
+const srow = StyleSheet.create({
+  wrap:   { marginBottom: 32 },
+  header: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", paddingHorizontal: H_PAD, marginBottom: 14 },
+  title:  { fontSize: 20, fontWeight: "700", color: L1 },
+  count:  { fontSize: 13, fontWeight: "700" },
+});
+
+// ─── Home tab ────────────────────────────────────────────────────────
+
+function HomeTab({
+  profile, navH, onRefine,
+}: {
+  profile: UserProfile; navH: number; onRefine: () => void;
+}) {
+  const [resources, setResources] = useState<Resource[] | null>(null);
+  const [search,    setSearch]    = useState("");
+  const [activeCat, setActiveCat] = useState<string | null>(null);
+
+  useEffect(() => {
+    getAllResources().then(setResources).catch(() => setResources([]));
+  }, []);
+
+  // Filter by location + diagnosis + optional postcode
+  const filtered = useMemo(() => {
+    if (!resources) return [];
+    return resources.filter(r => {
+      const userZip  = profile.zipcode.replace(/\s/g, "").toLowerCase();
+      const cityMatch = r.cities.some(c => c.toLowerCase() === profile.city.toLowerCase());
+      const countryMatch = !!profile.country &&
+        r.countries.some(rc => rc.toLowerCase() === profile.country.toLowerCase());
+      const zipcodeMatch = userZip.length >= 3 && (r.zipcodes ?? []).some(z =>
+        z.replace(/\s/g, "").toLowerCase().startsWith(userZip.slice(0, 4))
+      );
+      const locOk = cityMatch || zipcodeMatch ||
+        (r.entireCountry && countryMatch);
+      const diagOk   = r.diagnoses.length === 0 ||
+        r.diagnoses.some(d => d.toLowerCase() === profile.diagnosis.toLowerCase());
+      return locOk && diagOk;
+    });
+  }, [resources, profile]);
+
+  // Search + category
+  const displayed = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let base = q
+      ? filtered.filter(r =>
+          r.name.toLowerCase().includes(q) ||
+          r.description.toLowerCase().includes(q) ||
+          r.helpTypes.some(h => h.toLowerCase().includes(q))
+        )
+      : filtered;
+    if (activeCat) base = base.filter(r => r.helpTypes.includes(activeCat));
+    return base;
+  }, [filtered, search, activeCat]);
+
+  // Sectioned data
+  const sections = useMemo(() => {
+    if (search.trim() || activeCat) return [];
+    const result: Array<{ key: string; label: string; accent?: string; resources: Resource[]; isFeatured?: boolean }> = [];
+    const nearby = filtered.filter(r => !r.entireCountry && r.cities.some(c => c.toLowerCase() === profile.city.toLowerCase()));
+    const featured = nearby.length >= 2 ? nearby.slice(0, 8) : filtered.slice(0, 8);
+    if (featured.length > 0) result.push({ key: "__near", label: `Near you in ${profile.city}`, resources: featured, isFeatured: true });
+    for (const cat of CAT_ORDER) {
+      const catRes = filtered.filter(r => r.helpTypes.includes(cat));
+      if (catRes.length > 0) result.push({ key: cat, label: CATS[cat].label, accent: CATS[cat].accent, resources: catRes });
+    }
+    return result;
+  }, [filtered, search, activeCat, profile.city]);
+
+  const availCats = useMemo(() => {
+    const s = new Set<string>();
+    filtered.forEach(r => r.helpTypes.forEach(h => s.add(h)));
+    return CAT_ORDER.filter(c => s.has(c));
+  }, [filtered]);
+
+  const isFiltered = !!(search.trim() || activeCat);
+
+  // Loading
+  if (!resources) {
+    return (
+      <View style={ht.center}>
+        <ActivityIndicator size="large" color={ORANGE} />
+        <Text style={ht.loadText}>Finding support in {profile.city}…</Text>
+      </View>
+    );
+  }
+
+  // No results
+  if (filtered.length === 0) {
+    return (
+      <View style={ht.center}>
+        <Text style={ht.noResultsTitle}>Coming soon to {profile.city}</Text>
+        <Text style={ht.noResultsSub}>We're expanding quickly. Check back soon.</Text>
+        <TouchableOpacity style={ht.pill} onPress={onRefine}>
+          <Text style={ht.pillText}>Search all resources</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const Header = (
     <View>
-      {/* Sticky-style top bar */}
-      <View style={feedStyles.topBar}>
-        <Text style={feedStyles.logo}>Canopy</Text>
-        <TouchableOpacity style={feedStyles.locationBtn} onPress={onChangeCity}>
-          <Text style={feedStyles.locationIcon}>📍</Text>
-          <Text style={feedStyles.locationText}>{city}</Text>
-          <Text style={feedStyles.chevron}>›</Text>
+      {/* Context line */}
+      <View style={ht.contextLine}>
+        <Text style={ht.contextCity}>{profile.city}</Text>
+        <Text style={ht.contextDot}> · </Text>
+        <Text style={ht.contextDiag}>{profile.diagnosis}</Text>
+        <View style={{ flex: 1 }} />
+        <TouchableOpacity onPress={onRefine} style={ht.refineBtn}>
+          <Text style={ht.refineTxt}>Refine</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Section header */}
-      <View style={feedStyles.sectionHeader}>
-        <View>
-          <Text style={feedStyles.sectionTitle}>Support near you</Text>
-          <Text style={feedStyles.sectionSub}>
-            {resources.length} resource{resources.length !== 1 ? "s" : ""} available
-          </Text>
-        </View>
-        <TouchableOpacity style={feedStyles.advancedBtn} onPress={onAdvancedSearch}>
-          <Text style={feedStyles.advancedBtnText}>Refine search</Text>
-        </TouchableOpacity>
+      {/* Search pill */}
+      <View style={ht.searchPill}>
+        <Ionicons name="search" size={16} color={L3} style={{ marginLeft: 2 }} />
+        <TextInput
+          style={ht.searchInput}
+          value={search}
+          onChangeText={t => { setSearch(t); setActiveCat(null); }}
+          placeholder="Resources, organisations, categories…"
+          placeholderTextColor={L3}
+          autoCorrect={false}
+          clearButtonMode="while-editing"
+          returnKeyType="search"
+        />
       </View>
+
+      {/* Category chips */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }} contentContainerStyle={ht.chipsRow}>
+        {(["All", ...availCats] as string[]).map(cat => {
+          const isAll    = cat === "All";
+          const isActive = isAll ? !activeCat : activeCat === cat;
+          return (
+            <TouchableOpacity
+              key={cat}
+              onPress={() => { setActiveCat(isAll ? null : (activeCat === cat ? null : cat)); setSearch(""); }}
+              style={[ht.chip, isActive && ht.chipOn]}
+              activeOpacity={0.7}
+            >
+              <Text style={[ht.chipTxt, isActive && ht.chipTxtOn]}>
+                {isAll ? "All" : (CATS[cat]?.label ?? cat)}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      {/* Section label when filtered */}
+      {isFiltered ? (
+        <View style={ht.filterBar}>
+          <Text style={ht.filterLabel}>
+            {displayed.length} result{displayed.length !== 1 ? "s" : ""}
+            {search.trim() ? `  ·  "${search.trim()}"` : ""}
+            {activeCat ? `  ·  ${CATS[activeCat]?.label ?? activeCat}` : ""}
+          </Text>
+          <TouchableOpacity onPress={() => { setSearch(""); setActiveCat(null); }} hitSlop={8}>
+            <Text style={ht.clearBtn}>Clear</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={ht.feedHeading}>
+          <Text style={ht.feedTitle}>Support near you</Text>
+        </View>
+      )}
     </View>
   );
 
-  return (
-    <SafeAreaView style={feedStyles.container}>
+  if (isFiltered) {
+    return (
       <FlatList
-        data={resources}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <ResourceCard resource={item} />}
-        ListHeaderComponent={header}
-        contentContainerStyle={feedStyles.list}
+        data={displayed}
+        keyExtractor={r => r.id}
+        renderItem={({ item }) => <SearchCard resource={item} />}
+        ListHeaderComponent={Header}
+        contentContainerStyle={{ paddingHorizontal: H_PAD, paddingBottom: navH + 16 }}
         showsVerticalScrollIndicator={false}
-      />
-    </SafeAreaView>
-  );
-}
-
-const feedStyles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  topBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    backgroundColor: colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  logo: { fontSize: 18, fontWeight: "800", color: colors.primary },
-  locationBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.background,
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    gap: 4,
-  },
-  locationIcon: { fontSize: 13 },
-  locationText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.text },
-  chevron: { fontSize: 18, color: colors.textSecondary, lineHeight: 20 },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.sm,
-  },
-  sectionTitle: { fontSize: fontSize.xl, fontWeight: "800", color: colors.text },
-  sectionSub: { fontSize: fontSize.sm, color: colors.textSecondary, marginTop: 2 },
-  advancedBtn: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
-  },
-  advancedBtnText: { color: colors.white, fontWeight: "700", fontSize: fontSize.sm },
-  list: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
-});
-
-// ── Root component ───────────────────────────────────────────────────
-
-export default function HomeScreen() {
-  const router = useRouter();
-  const { startSession } = useSession();
-
-  const [selectedCity, setSelectedCity] = useState<string | null>(null);
-  const [cityCountryMap, setCityCountryMap] = useState<Record<string, string>>({});
-  const [allResources, setAllResources] = useState<Resource[] | null>(null);
-  const [resourcesLoading, setResourcesLoading] = useState(false);
-
-  // Load city→country map once
-  useEffect(() => {
-    getSheetCityCountryMap().then(setCityCountryMap).catch(() => {});
-  }, []);
-
-  // Load all resources when a city is first selected
-  useEffect(() => {
-    if (!selectedCity || allResources !== null) return;
-    setResourcesLoading(true);
-    getSheetResources()
-      .then(setAllResources)
-      .catch(() => setAllResources([]))
-      .finally(() => setResourcesLoading(false));
-  }, [selectedCity]);
-
-  const filteredResources = useMemo(() => {
-    if (!allResources || !selectedCity) return [];
-    return allResources.filter(
-      (r) =>
-        r.entireCountry ||
-        r.cities.some((c) => c.toLowerCase() === selectedCity.toLowerCase())
-    );
-  }, [allResources, selectedCity]);
-
-  const handleAdvancedSearch = useCallback(async () => {
-    await startSession();
-    router.push("/wizard/age");
-  }, [startSession, router]);
-
-  const handleChangeCity = useCallback(() => {
-    setSelectedCity(null);
-  }, []);
-
-  // No city chosen yet
-  if (!selectedCity) {
-    return <LocationPicker onSelect={setSelectedCity} />;
-  }
-
-  // City chosen, resources still loading
-  if (resourcesLoading) {
-    return (
-      <SafeAreaView style={loadingStyles.container}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={loadingStyles.text}>Finding resources in {selectedCity}…</Text>
-      </SafeAreaView>
-    );
-  }
-
-  // City chosen, no resources
-  if (filteredResources.length === 0) {
-    return (
-      <ComingSoon
-        city={selectedCity}
-        onChangeCity={handleChangeCity}
-        onAdvancedSearch={handleAdvancedSearch}
+        keyboardShouldPersistTaps="handled"
+        ListEmptyComponent={
+          <View style={ht.emptyWrap}>
+            <Text style={ht.emptyTitle}>No results</Text>
+            <Text style={ht.emptySub}>Try a different search term or category.</Text>
+          </View>
+        }
       />
     );
   }
 
-  // City chosen, resources found
   return (
-    <Feed
-      city={selectedCity}
-      resources={filteredResources}
-      onChangeCity={handleChangeCity}
-      onAdvancedSearch={handleAdvancedSearch}
+    <FlatList
+      data={sections}
+      keyExtractor={s => s.key}
+      renderItem={({ item: s }) => (
+        <SectionRow label={s.label} accent={s.accent} resources={s.resources} isFeatured={s.isFeatured} />
+      )}
+      ListHeaderComponent={Header}
+      contentContainerStyle={{ paddingBottom: navH + 16 }}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
     />
   );
 }
 
-const loadingStyles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.md,
-  },
-  text: { fontSize: fontSize.body, color: colors.textSecondary },
+const ht = StyleSheet.create({
+  center:       { flex: 1, alignItems: "center", justifyContent: "center", padding: 32, gap: 12 },
+  loadText:     { fontSize: 15, color: L2, marginTop: 8 },
+  noResultsTitle:{ fontSize: 22, fontWeight: "700", color: L1, textAlign: "center" },
+  noResultsSub: { fontSize: 16, color: L2, textAlign: "center", lineHeight: 24 },
+  pill:         { marginTop: 8, backgroundColor: ORANGE, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 14 },
+  pillText:     { fontSize: 17, fontWeight: "700", color: WHITE },
+
+  contextLine:  { flexDirection: "row", alignItems: "center", paddingHorizontal: H_PAD, paddingTop: 16, paddingBottom: 14 },
+  contextCity:  { fontSize: 14, fontWeight: "700", color: L1 },
+  contextDot:   { fontSize: 14, color: L3 },
+  contextDiag:  { fontSize: 14, color: L2 },
+  refineBtn:    { backgroundColor: "#FFF0E8", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 5 },
+  refineTxt:    { fontSize: 13, fontWeight: "700", color: ORANGE },
+
+  searchPill:   { flexDirection: "row", alignItems: "center", backgroundColor: WHITE, marginHorizontal: H_PAD, borderRadius: 14, paddingHorizontal: 14, gap: 8, height: 50, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },
+  searchInput:  { flex: 1, fontSize: 16, color: L1, paddingVertical: 0 },
+
+  chipsRow:     { paddingHorizontal: H_PAD, paddingBottom: 4, gap: 8, flexDirection: "row" },
+  chip:         { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: FILL },
+  chipOn:       { backgroundColor: ORANGE },
+  chipTxt:      { fontSize: 14, fontWeight: "500", color: L2 },
+  chipTxtOn:    { color: WHITE, fontWeight: "600" },
+
+  filterBar:    { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: H_PAD, paddingVertical: 14 },
+  filterLabel:  { fontSize: 13, color: L2 },
+  clearBtn:     { fontSize: 14, color: ORANGE, fontWeight: "600" },
+
+  feedHeading:  { paddingHorizontal: H_PAD, paddingTop: 24, paddingBottom: 14 },
+  feedTitle:    { fontSize: 22, fontWeight: "700", color: L1 },
+
+  emptyWrap:    { alignItems: "center", paddingVertical: 48 },
+  emptyTitle:   { fontSize: 18, fontWeight: "700", color: L1, marginBottom: 6 },
+  emptySub:     { fontSize: 15, color: L2, textAlign: "center" },
 });
+
+// ─── Search tab ───────────────────────────────────────────────────────
+
+function SearchTab({ navH }: { navH: number }) {
+  const [resources, setResources] = useState<Resource[] | null>(null);
+  const [search,    setSearch]    = useState("");
+
+  useEffect(() => {
+    getAllResources().then(setResources).catch(() => setResources([]));
+  }, []);
+
+  const results = useMemo(() => {
+    if (!resources) return [];
+    const q = search.trim().toLowerCase();
+    if (!q) return resources.slice(0, 20);
+    return resources.filter(r =>
+      r.name.toLowerCase().includes(q) ||
+      r.description.toLowerCase().includes(q) ||
+      r.helpTypes.some(h => h.toLowerCase().includes(q))
+    );
+  }, [resources, search]);
+
+  return (
+    <FlatList
+      data={results}
+      keyExtractor={r => r.id}
+      renderItem={({ item }) => <SearchCard resource={item} />}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ paddingHorizontal: H_PAD, paddingBottom: navH + 16 }}
+      ListHeaderComponent={
+        <View style={st.header}>
+          <Text style={st.title}>Explore</Text>
+          <View style={st.searchPill}>
+            <Ionicons name="search" size={16} color={L3} style={{ marginLeft: 2 }} />
+            <TextInput
+              style={st.searchInput}
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search all resources…"
+              placeholderTextColor={L3}
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+              autoFocus
+            />
+          </View>
+          {search.trim().length > 0 && (
+            <Text style={st.count}>{results.length} result{results.length !== 1 ? "s" : ""}</Text>
+          )}
+        </View>
+      }
+      ListEmptyComponent={
+        !resources ? (
+          <View style={{ alignItems: "center", paddingTop: 48 }}>
+            <ActivityIndicator size="large" color={ORANGE} />
+          </View>
+        ) : (
+          <View style={ht.emptyWrap}>
+            <Text style={ht.emptyTitle}>No results</Text>
+            <Text style={ht.emptySub}>Try a different search term.</Text>
+          </View>
+        )
+      }
+    />
+  );
+}
+
+const st = StyleSheet.create({
+  header:     { paddingTop: 16, paddingBottom: 8 },
+  title:      { fontSize: 28, fontWeight: "700", color: L1, marginBottom: 16, paddingHorizontal: 0 },
+  searchPill: { flexDirection: "row", alignItems: "center", backgroundColor: WHITE, borderRadius: 14, paddingHorizontal: 14, gap: 8, height: 50, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4, marginBottom: 8 },
+  searchInput:{ flex: 1, fontSize: 16, color: L1, paddingVertical: 0 },
+  count:      { fontSize: 13, color: L2, paddingBottom: 6 },
+});
+
+// ─── Profile tab ──────────────────────────────────────────────────────
+
+function ProfileTab({ profile, onEdit, navH }: { profile: UserProfile; onEdit: () => void; navH: number }) {
+  return (
+    <ScrollView
+      contentContainerStyle={{ paddingBottom: navH + 24 }}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Header card */}
+      <View style={pt.hero}>
+        <Image
+          source={require("../assets/canopy-logo.png")}
+          style={{ width: 72, height: 72, marginBottom: 14 }}
+          resizeMode="contain"
+        />
+        <Text style={pt.heroName}>{profile.city}</Text>
+        <Text style={pt.heroDiag}>{profile.diagnosis}</Text>
+        {profile.zipcode ? <Text style={pt.heroZip}>{profile.zipcode}</Text> : null}
+      </View>
+
+      {/* Detail cards */}
+      <View style={{ paddingHorizontal: H_PAD }}>
+        <Text style={pt.sectionLabel}>Your profile</Text>
+
+        <View style={pt.card}>
+          <ProfileRow icon="location-outline" label="City" value={profile.city} />
+          <View style={pt.sep} />
+          <ProfileRow icon="ribbon-outline" label="Diagnosis" value={profile.diagnosis} />
+          {profile.zipcode ? (
+            <>
+              <View style={pt.sep} />
+              <ProfileRow icon="mail-outline" label="Postcode" value={profile.zipcode} />
+            </>
+          ) : null}
+        </View>
+
+        <TouchableOpacity style={pt.editBtn} onPress={onEdit} activeOpacity={0.8}>
+          <Text style={pt.editTxt}>Update profile</Text>
+        </TouchableOpacity>
+
+        <Text style={pt.footNote}>
+          Your profile is only stored on this device and is never shared.
+        </Text>
+      </View>
+    </ScrollView>
+  );
+}
+
+function ProfileRow({ icon, label, value }: { icon: string; label: string; value: string }) {
+  return (
+    <View style={pt.row}>
+      <Ionicons name={icon as any} size={20} color={L2} style={{ width: 28 }} />
+      <Text style={pt.rowLabel}>{label}</Text>
+      <Text style={pt.rowValue} numberOfLines={1}>{value}</Text>
+    </View>
+  );
+}
+
+const pt = StyleSheet.create({
+  hero:       { backgroundColor: ORANGE, paddingTop: 48, paddingBottom: 36, alignItems: "center" },
+  heroName:   { fontSize: 26, fontWeight: "800", color: WHITE, marginBottom: 4 },
+  heroDiag:   { fontSize: 16, color: "rgba(255,255,255,0.80)", fontWeight: "500" },
+  heroZip:    { fontSize: 14, color: "rgba(255,255,255,0.65)", marginTop: 2 },
+
+  sectionLabel: { fontSize: 13, fontWeight: "600", color: L3, textTransform: "uppercase", letterSpacing: 0.8, marginTop: 28, marginBottom: 10 },
+
+  card:       { backgroundColor: WHITE, borderRadius: 16, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
+  row:        { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 15, gap: 10 },
+  rowLabel:   { fontSize: 17, color: L2, flex: 1 },
+  rowValue:   { fontSize: 17, fontWeight: "600", color: L1 },
+  sep:        { height: StyleSheet.hairlineWidth, backgroundColor: SEP, marginHorizontal: 16 },
+
+  editBtn:    { marginTop: 16, backgroundColor: ORANGE, borderRadius: 14, paddingVertical: 16, alignItems: "center" },
+  editTxt:    { fontSize: 17, fontWeight: "700", color: WHITE },
+
+  footNote:   { marginTop: 20, fontSize: 13, color: L3, textAlign: "center", lineHeight: 18, paddingHorizontal: 8 },
+});
+
+// ─── Bottom nav ───────────────────────────────────────────────────────
+
+function BottomNav({ tab, setTab, bottomInset }: {
+  tab: Tab; setTab: (t: Tab) => void; bottomInset: number;
+}) {
+  const height = NAV_H + bottomInset;
+  const items: { id: Tab; label: string; icon: string; iconActive: string }[] = [
+    { id: "home",    label: "Home",    icon: "home-outline",    iconActive: "home" },
+    { id: "search",  label: "Explore", icon: "compass-outline", iconActive: "compass" },
+    { id: "profile", label: "Me",      icon: "person-outline",  iconActive: "person" },
+  ];
+
+  return (
+    <View style={[bn.bar, { height, paddingBottom: bottomInset }]}>
+      {items.map(item => {
+        const active = tab === item.id;
+        return (
+          <TouchableOpacity
+            key={item.id}
+            style={bn.item}
+            onPress={() => setTab(item.id)}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={(active ? item.iconActive : item.icon) as any}
+              size={24}
+              color={active ? ORANGE : L3}
+            />
+            <Text style={[bn.label, active && bn.labelActive]}>{item.label}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+const bn = StyleSheet.create({
+  bar:   {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    flexDirection: "row",
+    backgroundColor: "rgba(252, 247, 242, 0.96)",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(0,0,0,0.10)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 20,
+  },
+  item:        { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 10, gap: 3 },
+  label:       { fontSize: 10, fontWeight: "500", color: L3 },
+  labelActive: { color: ORANGE, fontWeight: "600" },
+});
+
+// ─── Root ────────────────────────────────────────────────────────────
+
+export default function HomeScreen() {
+  const router                    = useRouter();
+  const { startSession, saveAnswer } = useSession();
+  const insets                    = useSafeAreaInsets();
+  const [profile, setProfile]     = useState<UserProfile | null>(null);
+  const [tab,     setTab]         = useState<Tab>("home");
+
+  const navH = NAV_H + insets.bottom;
+
+  const handleRefine = useCallback(async () => {
+    await startSession();
+    // Pre-populate location + diagnosis so wizard skips those steps
+    if (profile) {
+      await saveAnswer("location", profile.city);
+      if (profile.country) await saveAnswer("country", profile.country);
+      if (profile.zipcode) await saveAnswer("zipcode", profile.zipcode);
+      await saveAnswer("diagnosis", profile.diagnosis);
+    }
+    router.push("/wizard/age");
+  }, [startSession, saveAnswer, profile, router]);
+
+  if (!profile) return <Onboarding onDone={p => { setProfile(p); setTab("home"); }} />;
+
+  return (
+    <View style={{ flex: 1, backgroundColor: CREAM }}>
+      {/* Safe area top for content */}
+      <View style={{ flex: 1, paddingTop: insets.top }}>
+        {tab === "home"    && <HomeTab profile={profile} navH={navH} onRefine={handleRefine} />}
+        {tab === "search"  && <SearchTab navH={navH} />}
+        {tab === "profile" && <ProfileTab profile={profile} onEdit={() => setProfile(null)} navH={navH} />}
+      </View>
+
+      <BottomNav tab={tab} setTab={setTab} bottomInset={insets.bottom} />
+    </View>
+  );
+}

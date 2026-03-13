@@ -8,8 +8,6 @@ import { colors, spacing } from "../../utils/theme";
 const STEPS = [
   "/wizard/age",
   "/wizard/role",
-  "/wizard/location",
-  "/wizard/diagnosis",
   "/wizard/treatment-stage",
   "/wizard/help-needed",
 ];

@@ -5,8 +5,13 @@ import { StatusBar } from "expo-status-bar";
 import { SessionProvider } from "../context/SessionContext";
 import ErrorBoundary from "../components/ErrorBoundary";
 import { colors } from "../utils/theme";
+import { useFonts } from "expo-font";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({ ...Ionicons.font });
+  if (!fontsLoaded) return null;
+
   return (
     <ErrorBoundary>
       <SafeAreaProvider>

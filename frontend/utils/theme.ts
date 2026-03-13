@@ -1,18 +1,37 @@
 export const colors = {
-  primary: "#5B8A72",
-  primaryLight: "#7AA894",
-  background: "#FAFAF7",
-  accent: "#E8985E",
-  accentLight: "#F2C4A0",
-  text: "#2D2D2D",
-  textSecondary: "#6B6B6B",
-  border: "#E0DDD8",
+  // Brand
+  primary: "#F47B4B",          // Main orange
+  primaryLight: "#FFD9C2",     // Soft peach
+  yellow: "#F7C548",           // Handle yellow
+  clay: "#EBA58B",             // Clay blush
+  coral: "#E15A4F",            // Coral red
+  warmBrown: "#5B3A29",        // Warm brown
+  teal: "#5DA9A3",             // Muted teal (positive)
+
+  // Backgrounds
+  background: "#F9F2E7",       // Cream
   white: "#FFFFFF",
-  error: "#D64545",
-  chipBg: "#F0EDEA",
-  chipSelected: "#5B8A72",
+  card: "#FFFFFF",
+
+  // Text
+  text: "#2C2C2C",             // Primary dark
+  textWarm: "#5B3A29",         // Primary warm brown
+  textSecondary: "#7B4A3B",    // Secondary warm brown
+  textMuted: "#A08070",        // Muted text
+
+  // UI
+  border: "#EDE5D8",           // Warm border
+  shadow: "rgba(91, 58, 41, 0.10)",
+  error: "#E15A4F",
+
+  // Chips
+  chipBg: "#F5EDE5",
+  chipSelected: "#F47B4B",
   chipSelectedText: "#FFFFFF",
-  shadow: "rgba(0, 0, 0, 0.08)",
+
+  // Kept for backward compat with wizard screens
+  accent: "#F7C548",
+  accentLight: "#FFD9C2",
 };
 
 export const spacing = {
@@ -25,11 +44,13 @@ export const spacing = {
 };
 
 export const fontSize = {
+  xs: 12,
   sm: 14,
   body: 16,
   lg: 18,
   xl: 22,
   heading: 26,
+  display: 32,
 };
 
 export const radius = {

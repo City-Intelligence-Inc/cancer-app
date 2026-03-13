@@ -17,7 +17,7 @@ export default function RoleStep() {
     setLoading(true);
     try {
       await saveAnswer("role", selected as "Patient" | "Carer");
-      router.push("/wizard/location");
+      router.push("/wizard/treatment-stage");
     } finally {
       setLoading(false);
     }
