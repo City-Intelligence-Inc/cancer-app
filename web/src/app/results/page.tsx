@@ -7,7 +7,7 @@ import Button from "@/components/Button";
 import { useSession } from "@/context/SessionContext";
 import { matchResourcesWithLog } from "@/utils/match";
 import { Resource } from "@/data/resources";
-import { getSheetResources, saveMatchLog } from "@/services/api";
+import { getAllResources, saveMatchLog } from "@/services/api";
 
 export default function ResultsPage() {
   const router = useRouter();
@@ -20,7 +20,7 @@ export default function ResultsPage() {
 
   useEffect(() => {
     if (notAvailable) { setLoading(false); return; }
-    getSheetResources()
+    getAllResources()
       .then((r) => { setSheetResources(r); setLoading(false); })
       .catch(() => { setError(true); setLoading(false); });
   }, [notAvailable]);

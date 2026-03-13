@@ -7,7 +7,7 @@ import Button from "../components/Button";
 import { useSession } from "../context/SessionContext";
 import { matchResourcesWithLog } from "../utils/match";
 import { Resource } from "../data/resources";
-import { getSheetResources, saveMatchLog } from "../services/api";
+import { getAllResources, saveMatchLog } from "../services/api";
 import { colors, fontSize, spacing } from "../utils/theme";
 
 export default function ResultsScreen() {
@@ -18,7 +18,7 @@ export default function ResultsScreen() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getSheetResources()
+    getAllResources()
       .then((r) => { setSheetResources(r); setLoading(false); })
       .catch(() => { setError(true); setLoading(false); });
   }, []);

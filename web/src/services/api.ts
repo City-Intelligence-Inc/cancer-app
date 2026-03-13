@@ -167,6 +167,86 @@ export async function getSheetResources(): Promise<Resource[]> {
   return data.rows.map(mapRowToResource).filter((r) => r.url);
 }
 
+interface DbResource {
+  resourceId: string;
+  name: string;
+  description: string;
+  helpTypes: string[];
+  cancerTypes: string[];
+  entireCountry: boolean;
+  countries: string[];
+  cities: string[];
+  zipcodes?: string[];
+  patientCarer: string;
+  treatmentStage: string;
+  websiteUrl: string;
+  contact?: string;
+  minAge?: number;
+  maxAge?: number;
+}
+
+function mapDbResourceToResource(r: DbResource): Resource {
+  const cancerTypes = r.cancerTypes || [];
+  const diagnoses = cancerTypes.includes("All") ? [] : cancerTypes.map(mapDiagnosis);
+  const minAge = r.minAge != null ? Number(r.minAge) : null;
+  const maxAge = r.maxAge != null ? Number(r.maxAge) : null;
+  const ageRange: [number, number] | null =
+    minAge != null && maxAge != null ? [minAge, maxAge] : null;
+  const rawPatientCarer = (r.patientCarer || "Both").trim();
+  const patientCarer: "Patient" | "Carer" | "Both" =
+    rawPatientCarer === "Patient" || rawPatientCarer === "Carer" ? rawPatientCarer : "Both";
+  const rawStage = (r.treatmentStage || "All").trim();
+  const treatmentStage = TREATMENT_STAGE_MAP[rawStage] || "All";
+
+  return {
+    id: `db-${r.resourceId}`,
+    name: r.name || "Unknown",
+    description: r.description || "",
+    helpTypes: r.helpTypes || [],
+    diagnoses,
+    ageRange,
+    locations: [...new Set([...(r.countries || []), ...(r.cities || [])])],
+    entireCountry: r.entireCountry ?? false,
+    cities: r.cities || [],
+    zipcodes: r.zipcodes || [],
+    countries: r.countries || [],
+    url: r.websiteUrl || "",
+    contact: r.contact || undefined,
+    patientCarer,
+    treatmentStage,
+  };
+}
+
+/** Merges sheet + DynamoDB resources, deduplicating by name */
+export async function getAllResources(): Promise<Resource[]> {
+  const [sheetRes, dbRes] = await Promise.all([
+    fetch(`${API_URL}/sheet-data`).catch(() => null),
+    fetch(`${API_URL}/resources`).catch(() => null),
+  ]);
+
+  const resources: Resource[] = [];
+  const seen = new Set<string>();
+
+  if (sheetRes?.ok) {
+    const data: SheetData = await sheetRes.json();
+    for (const r of data.rows.map(mapRowToResource).filter((r) => r.url)) {
+      seen.add(r.name.toLowerCase());
+      resources.push(r);
+    }
+  }
+
+  if (dbRes?.ok) {
+    const data: { resources: DbResource[] } = await dbRes.json();
+    for (const dbr of data.resources) {
+      if (seen.has((dbr.name || "").toLowerCase())) continue;
+      const r = mapDbResourceToResource(dbr);
+      if (r.url) resources.push(r);
+    }
+  }
+
+  return resources;
+}
+
 export async function getSheetCities(): Promise<string[]> {
   const [sheetData, dbData] = await Promise.all([
     request<SheetData>("/sheet-data"),

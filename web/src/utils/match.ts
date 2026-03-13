@@ -4,6 +4,7 @@ interface Answers {
   age?: number;
   location?: string;
   country?: string;
+  zipcode?: string;
   diagnosis?: string;
   help_needed?: string[];
   role?: "Patient" | "Carer";
@@ -48,11 +49,15 @@ export function matchResourcesWithLog(answers: Answers, resources: Resource[]): 
 } {
   const city = answers.location ?? "";
   const country = answers.country ?? "";
+  const zipcode = answers.zipcode ?? "";
   const diagnosis = answers.diagnosis ?? "";
   const helpNeeded = answers.help_needed ?? [];
   const role = answers.role;
   const age = answers.age;
   const treatmentStage = answers.treatment_stage;
+
+  // Extract outward code (e.g. "SW1A" from "SW1A 1AA") for postcode matching
+  const userOutward = zipcode.split(" ")[0].toUpperCase();
 
   const matches: MatchResult[] = [];
   const rejections: MatchLog["rejections"] = [];
@@ -64,6 +69,8 @@ export function matchResourcesWithLog(answers: Answers, resources: Resource[]): 
     let rejectedDetail = "";
 
     // --- Location ---
+    const resourceOutwards = (r.zipcodes || []).map((z) => z.split(" ")[0].toUpperCase());
+    const zipcodeMatch = userOutward && resourceOutwards.length > 0 && resourceOutwards.includes(userOutward);
     if (r.entireCountry) {
       reasons.push({ filter: "location", passed: true, detail: "Available UK-wide" });
     } else {
@@ -71,6 +78,8 @@ export function matchResourcesWithLog(answers: Answers, resources: Resource[]): 
       const countryMatch = r.countries.length > 0 && !!country && r.countries.includes(country);
       if (cityMatch) {
         reasons.push({ filter: "location", passed: true, detail: `City match: "${city}" in [${r.cities.join(", ")}]` });
+      } else if (zipcodeMatch) {
+        reasons.push({ filter: "location", passed: true, detail: `Postcode match: "${userOutward}" in [${resourceOutwards.join(", ")}]` });
       } else if (countryMatch) {
         reasons.push({ filter: "location", passed: true, detail: `Country match: "${country}" in [${r.countries.join(", ")}]` });
       } else {
@@ -79,6 +88,9 @@ export function matchResourcesWithLog(answers: Answers, resources: Resource[]): 
         rejectedDetail = `User city "${city}" / country "${country}" not in cities [${r.cities.join(", ")}] or countries [${r.countries.join(", ")}]`;
         reasons.push({ filter: "location", passed: false, detail: rejectedDetail });
       }
+    }
+    if (zipcodeMatch) {
+      reasons.push({ filter: "zipcode", passed: true, detail: `Postcode boost: "${userOutward}" matches resource postcodes` });
     }
 
     // --- Diagnosis ---
@@ -150,7 +162,8 @@ export function matchResourcesWithLog(answers: Answers, resources: Resource[]): 
     if (rejected) {
       rejections.push({ resourceId: r.id, resourceName: r.name, rejectedBy, detail: rejectedDetail });
     } else {
-      const score = helpNeeded.filter((h) => r.helpTypes.includes(h)).length;
+      let score = helpNeeded.filter((h) => r.helpTypes.includes(h)).length;
+      if (zipcodeMatch) score += 2; // boost resources matching user's postcode
       matches.push({ resource: r, score, reasons });
     }
   }
