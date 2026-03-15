@@ -249,20 +249,20 @@ function Onboarding({ onDone }: { onDone: (p: UserProfile) => void }) {
           <Text style={ob.stepSub}>We'll find support resources available near you.</Text>
 
           <TouchableOpacity
-            style={[ob.locationBtn, geoLoading && { opacity: 0.5 }]}
+            style={[ob.locationBtnHero, geoLoading && { opacity: 0.6 }]}
             onPress={handleUseLocation}
-            disabled={geoLoading || citiesLoading}
-            activeOpacity={0.7}
+            disabled={geoLoading}
+            activeOpacity={0.75}
           >
             {geoLoading ? (
               <View style={ob.locationBtnInner}>
-                <ActivityIndicator size="small" color="#047857" />
-                <Text style={ob.locationBtnText}>Finding your location...</Text>
+                <ActivityIndicator size="small" color={WHITE} />
+                <Text style={ob.locationBtnHeroText}>Finding your location...</Text>
               </View>
             ) : (
               <View style={ob.locationBtnInner}>
-                <Ionicons name="navigate" size={18} color="#047857" />
-                <Text style={ob.locationBtnText}>Use my location</Text>
+                <Ionicons name="navigate" size={20} color={WHITE} />
+                <Text style={ob.locationBtnHeroText}>Use my location</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -271,7 +271,7 @@ function Onboarding({ onDone }: { onDone: (p: UserProfile) => void }) {
 
           <View style={ob.dividerRow}>
             <View style={ob.dividerLine} />
-            <Text style={ob.dividerText}>or search</Text>
+            <Text style={ob.dividerText}>or search manually</Text>
             <View style={ob.dividerLine} />
           </View>
 
@@ -285,7 +285,6 @@ function Onboarding({ onDone }: { onDone: (p: UserProfile) => void }) {
               placeholderTextColor={L3}
               autoCapitalize="words"
               autoCorrect={false}
-              autoFocus
             />
             {citiesLoading && <ActivityIndicator size="small" color={ORANGE} style={{ marginRight: 12 }} />}
           </View>
@@ -484,9 +483,9 @@ const ob = StyleSheet.create({
   diagChipMuted: { backgroundColor: FILL },
   diagChipText:  { fontSize: 15, fontWeight: "500", color: L1 },
 
-  locationBtn:      { backgroundColor: "#ecfdf5", borderWidth: 1.5, borderColor: "#a7f3d0", borderRadius: 14, paddingVertical: 16, marginBottom: 10 },
-  locationBtnInner: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  locationBtnText:  { fontSize: 16, fontWeight: "600", color: "#047857" },
+  locationBtnHero:     { backgroundColor: ORANGE, borderRadius: 16, paddingVertical: 18, marginBottom: 12, shadowColor: ORANGE, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 6 },
+  locationBtnInner:    { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
+  locationBtnHeroText: { fontSize: 17, fontWeight: "700", color: WHITE },
   geoError:         { fontSize: 13, color: "#d97706", marginBottom: 8 },
   dividerRow:       { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
   dividerLine:      { flex: 1, height: 1, backgroundColor: SEP },
