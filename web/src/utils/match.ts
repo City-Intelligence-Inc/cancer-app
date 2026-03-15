@@ -164,6 +164,9 @@ export function matchResourcesWithLog(answers: Answers, resources: Resource[]): 
     } else {
       let score = helpNeeded.filter((h) => r.helpTypes.includes(h)).length;
       if (zipcodeMatch) score += 2; // boost resources matching user's postcode
+      // Boost resources with a direct phone number so patients can actually connect
+      const hasPhone = !!(r.phone || (r.contact && /[\d\+\(\)]{7,}/.test(r.contact)));
+      if (hasPhone) score += 1;
       matches.push({ resource: r, score, reasons });
     }
   }

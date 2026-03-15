@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, ScrollView,
   StyleSheet, ActivityIndicator, Linking, Dimensions, Platform, Image,
+  KeyboardAvoidingView,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -68,7 +69,9 @@ type Tab = "home" | "search" | "profile";
 
 function Onboarding({ onDone }: { onDone: (p: UserProfile) => void }) {
   const insets = useSafeAreaInsets();
+  const H = Dimensions.get("window").height;
 
+  const [step, setStep] = useState<"welcome" | "city" | "diagnosis" | "postcode">("welcome");
   const [cityQ,    setCityQ]    = useState("");
   const [cities,   setCities]   = useState<string[]>([]);
   const [city,     setCity]     = useState<string | null>(null);
@@ -82,7 +85,6 @@ function Onboarding({ onDone }: { onDone: (p: UserProfile) => void }) {
 
   const [zip,      setZip]      = useState("");
 
-  // Merge hardcoded + sheet diagnoses
   const allDiags = useMemo(() => {
     const merged = new Set([...ALL_DIAGNOSES, ...sheetDiags]);
     const sorted = Array.from(merged).filter(d => d !== "Other / Unsure").sort();
@@ -108,10 +110,9 @@ function Onboarding({ onDone }: { onDone: (p: UserProfile) => void }) {
   const citySugg = useMemo(() => {
     const q = cityQ.trim().toLowerCase();
     if (!q || city) return [];
-    return cities.filter(c => c.toLowerCase().startsWith(q)).slice(0, 8);
+    return cities.filter(c => c.toLowerCase().startsWith(q)).slice(0, 6);
   }, [cityQ, cities, city]);
 
-  // Diagnoses: show all when empty, filter when typing
   const diagOptions = useMemo(() => {
     const q = diagQ.trim().toLowerCase();
     if (!q) return allDiags;
@@ -122,176 +123,295 @@ function Onboarding({ onDone }: { onDone: (p: UserProfile) => void }) {
     return filtered;
   }, [diagQ, allDiags]);
 
-  const ready = !!city && !!diag;
+  // ── Welcome screen ──
+  if (step === "welcome") {
+    return (
+      <View style={{ flex: 1, backgroundColor: CREAM }}>
+        <View style={[ob.heroBlock, { paddingTop: insets.top + 48 }]}>
+          <Image
+            source={require("../assets/canopy-logo.png")}
+            style={{ width: 88, height: 88, marginBottom: 20 }}
+            resizeMode="contain"
+          />
+          <Text style={ob.heroTitle}>Find support{"\n"}that fits you</Text>
+          <Text style={ob.heroSub}>
+            Matched to your location, diagnosis, and needs — in under 2 minutes.
+          </Text>
+        </View>
 
+        <View style={ob.welcomeBody}>
+          {[
+            { icon: "location-outline", title: "Local to you", desc: "Resources near your city and postcode" },
+            { icon: "shield-checkmark-outline", title: "Private & anonymous", desc: "No account needed, data auto-deletes" },
+            { icon: "heart-outline", title: "Personalised matches", desc: "Tailored to your diagnosis and stage" },
+          ].map((item, i) => (
+            <View key={i} style={ob.featureRow}>
+              <View style={ob.featureIcon}>
+                <Ionicons name={item.icon as any} size={22} color={ORANGE} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={ob.featureTitle}>{item.title}</Text>
+                <Text style={ob.featureDesc}>{item.desc}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        <View style={{ flexDirection: "row", justifyContent: "center", gap: 32, paddingVertical: 16 }}>
+          {[["1,000+", "Resources"], ["188", "Countries"], ["700+", "Cities"]].map(([num, label]) => (
+            <View key={label} style={{ alignItems: "center" }}>
+              <Text style={{ fontSize: 22, fontWeight: "800", color: ORANGE }}>{num}</Text>
+              <Text style={{ fontSize: 11, color: L2, fontWeight: "600" }}>{label}</Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={[ob.welcomeFooter, { paddingBottom: insets.bottom + 24 }]}>
+          <TouchableOpacity style={ob.cta} onPress={() => setStep("city")} activeOpacity={0.82}>
+            <Text style={ob.ctaText}>Get started</Text>
+          </TouchableOpacity>
+          <Text style={ob.footerNote}>Free to use, always</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // ── City step ──
+  if (step === "city") {
+    return (
+      <View style={{ flex: 1, backgroundColor: CREAM }}>
+        <View style={[ob.stepHeader, { paddingTop: insets.top + 12 }]}>
+          <TouchableOpacity onPress={() => setStep("welcome")} hitSlop={12} style={ob.backBtn}>
+            <Ionicons name="chevron-back" size={24} color={L1} />
+          </TouchableOpacity>
+          <View style={ob.stepDots}>
+            <View style={[ob.dot, ob.dotActive]} />
+            <View style={ob.dot} />
+            <View style={ob.dot} />
+          </View>
+          <View style={{ width: 32 }} />
+        </View>
+
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingHorizontal: H_PAD, paddingTop: 24, paddingBottom: insets.bottom + 40 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={ob.stepTitle}>Where are you{"\n"}located?</Text>
+          <Text style={ob.stepSub}>We'll find support resources available near you.</Text>
+
+          <View style={ob.field}>
+            <Ionicons name="search" size={18} color={L3} style={{ marginLeft: 14 }} />
+            <TextInput
+              style={ob.fieldInput}
+              value={cityQ}
+              onChangeText={setCityQ}
+              placeholder="Search for your city…"
+              placeholderTextColor={L3}
+              autoCapitalize="words"
+              autoCorrect={false}
+              autoFocus
+            />
+            {citiesLoading && <ActivityIndicator size="small" color={ORANGE} style={{ marginRight: 12 }} />}
+          </View>
+
+          {citySugg.length > 0 && (
+            <View style={ob.list}>
+              {citySugg.map((c, i) => (
+                <TouchableOpacity
+                  key={c}
+                  style={[ob.listRow, i < citySugg.length - 1 && ob.listRowBorder]}
+                  onPress={() => { setCity(c); setCityQ(c); setStep("diagnosis"); }}
+                  activeOpacity={0.55}
+                >
+                  <Ionicons name="location-outline" size={18} color={ORANGE} />
+                  <Text style={ob.listRowText}>{c}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  // ── Diagnosis step ──
+  if (step === "diagnosis") {
+    return (
+      <View style={{ flex: 1, backgroundColor: CREAM }}>
+        <View style={[ob.stepHeader, { paddingTop: insets.top + 12 }]}>
+          <TouchableOpacity onPress={() => { setStep("city"); setCity(null); setCityQ(""); }} hitSlop={12} style={ob.backBtn}>
+            <Ionicons name="chevron-back" size={24} color={L1} />
+          </TouchableOpacity>
+          <View style={ob.stepDots}>
+            <View style={[ob.dot, ob.dotDone]} />
+            <View style={[ob.dot, ob.dotActive]} />
+            <View style={ob.dot} />
+          </View>
+          <View style={{ width: 32 }} />
+        </View>
+
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingHorizontal: H_PAD, paddingTop: 24, paddingBottom: insets.bottom + 40 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={ob.stepContext}>
+            <Ionicons name="location" size={14} color={ORANGE} />
+            <Text style={ob.stepContextText}>{city}</Text>
+          </View>
+          <Text style={ob.stepTitle}>What type of{"\n"}cancer?</Text>
+          <Text style={ob.stepSub}>This helps us show the most relevant resources.</Text>
+
+          <View style={[ob.field, { marginBottom: 16 }]}>
+            <Ionicons name="search" size={18} color={L3} style={{ marginLeft: 14 }} />
+            <TextInput
+              style={ob.fieldInput}
+              value={diagQ}
+              onChangeText={setDiagQ}
+              placeholder="Search or pick below…"
+              placeholderTextColor={L3}
+              autoCapitalize="words"
+              autoCorrect={false}
+            />
+            {diagsLoading && <ActivityIndicator size="small" color={ORANGE} style={{ marginRight: 12 }} />}
+          </View>
+
+          <View style={ob.chipGrid}>
+            {diagOptions.map(d => (
+              <TouchableOpacity
+                key={d}
+                onPress={() => { setDiag(d); setStep("postcode"); }}
+                style={[ob.diagChip, d === "Other / Unsure" && ob.diagChipMuted]}
+                activeOpacity={0.65}
+              >
+                <Text style={[ob.diagChipText, d === "Other / Unsure" && { color: L2 }]}>{d}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
+  // ── Postcode step ──
   return (
-    <View style={{ flex: 1, backgroundColor: CREAM }}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: CREAM }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <View style={[ob.stepHeader, { paddingTop: insets.top + 12 }]}>
+        <TouchableOpacity onPress={() => { setStep("diagnosis"); setDiag(null); setDiagQ(""); }} hitSlop={12} style={ob.backBtn}>
+          <Ionicons name="chevron-back" size={24} color={L1} />
+        </TouchableOpacity>
+        <View style={ob.stepDots}>
+          <View style={[ob.dot, ob.dotDone]} />
+          <View style={[ob.dot, ob.dotDone]} />
+          <View style={[ob.dot, ob.dotActive]} />
+        </View>
+        <View style={{ width: 32 }} />
+      </View>
+
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: H_PAD, paddingTop: insets.top + 32, paddingBottom: insets.bottom + 40 }}
+        contentContainerStyle={{ paddingHorizontal: H_PAD, paddingTop: 24 }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Logo */}
-        <Image
-          source={require("../assets/canopy-logo.png")}
-          style={{ width: 140, height: 140, alignSelf: "center", marginBottom: 16 }}
-          resizeMode="contain"
-        />
-        <Text style={ob.tagline}>Cancer support,{"\n"}close to home.</Text>
+        <View style={ob.stepContext}>
+          <Ionicons name="location" size={14} color={ORANGE} />
+          <Text style={ob.stepContextText}>{city}</Text>
+          <Text style={ob.stepContextSep}>·</Text>
+          <Text style={ob.stepContextText}>{diag}</Text>
+        </View>
+        <Text style={ob.stepTitle}>Postcode</Text>
+        <Text style={ob.stepSub}>Optional — helps us find resources even closer to you.</Text>
 
-        <View style={ob.divider} />
-
-        {/* City */}
-        <Text style={ob.label}>Where are you located?</Text>
-        {city ? (
-          <View style={ob.confirmedRow}>
-            <View style={ob.confirmedChip}>
-              <Text style={ob.confirmedChipText}>{city}</Text>
-            </View>
-            <TouchableOpacity onPress={() => { setCity(null); setCityQ(""); setDiag(null); setDiagQ(""); }} hitSlop={8}>
-              <Text style={ob.change}>Change</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <>
-            <View style={ob.field}>
-              <TextInput
-                style={ob.fieldInput}
-                value={cityQ}
-                onChangeText={setCityQ}
-                placeholder="Your city"
-                placeholderTextColor={L3}
-                autoCapitalize="words"
-                autoCorrect={false}
-              />
-              {citiesLoading && <ActivityIndicator size="small" color={ORANGE} style={{ marginRight: 12 }} />}
-            </View>
-            {citySugg.length > 0 && (
-              <View style={ob.list}>
-                {citySugg.map((c, i) => (
-                  <TouchableOpacity
-                    key={c}
-                    style={[ob.listRow, i < citySugg.length - 1 && ob.listRowBorder]}
-                    onPress={() => { setCity(c); setCityQ(c); }}
-                    activeOpacity={0.55}
-                  >
-                    <Text style={ob.listRowText}>{c}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </>
-        )}
-
-        {/* Diagnosis */}
-        {city && (
-          <>
-            <View style={[ob.divider, { marginTop: 28 }]} />
-            <Text style={ob.label}>What is your diagnosis?</Text>
-
-            {diag ? (
-              <View style={ob.confirmedRow}>
-                <View style={[ob.confirmedChip, { backgroundColor: "#FFF0E8", borderColor: ORANGE }]}>
-                  <Text style={[ob.confirmedChipText, { color: ORANGE }]}>{diag}</Text>
-                </View>
-                <TouchableOpacity onPress={() => setDiag(null)} hitSlop={8}>
-                  <Text style={ob.change}>Change</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <>
-                <View style={[ob.field, { marginBottom: 10 }]}>
-                  <TextInput
-                    style={ob.fieldInput}
-                    value={diagQ}
-                    onChangeText={setDiagQ}
-                    placeholder="Search or select below"
-                    placeholderTextColor={L3}
-                    autoCapitalize="words"
-                    autoCorrect={false}
-                  />
-                  {diagsLoading && <ActivityIndicator size="small" color={ORANGE} style={{ marginRight: 12 }} />}
-                </View>
-                <View style={ob.chipGrid}>
-                  {diagOptions.map(d => (
-                    <TouchableOpacity
-                      key={d}
-                      onPress={() => setDiag(d)}
-                      style={[ob.diagChip, d === "Other / Unsure" && ob.diagChipMuted]}
-                      activeOpacity={0.65}
-                    >
-                      <Text style={[ob.diagChipText, d === "Other / Unsure" && { color: L2 }]}>{d}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </>
-            )}
-          </>
-        )}
-
-        {/* Postcode */}
-        {city && diag && (
-          <>
-            <View style={[ob.divider, { marginTop: 28 }]} />
-            <View style={ob.postcodeHeader}>
-              <Text style={ob.label}>Postcode</Text>
-              <Text style={ob.optional}>optional — for closer matches</Text>
-            </View>
-            <View style={ob.field}>
-              <TextInput
-                style={ob.fieldInput}
-                value={zip}
-                onChangeText={setZip}
-                placeholder="e.g. SW1A 1AA"
-                placeholderTextColor={L3}
-                autoCapitalize="characters"
-                autoCorrect={false}
-              />
-            </View>
-
-            <TouchableOpacity
-              style={[ob.cta, !ready && { opacity: 0.38 }]}
-              disabled={!ready}
-              onPress={() => onDone({ city: city!, country: cityCountryMap[city!] ?? "", zipcode: zip.trim(), diagnosis: diag! })}
-              activeOpacity={0.82}
-            >
-              <Text style={ob.ctaText}>Find support</Text>
-            </TouchableOpacity>
-          </>
-        )}
+        <View style={ob.field}>
+          <Ionicons name="mail-outline" size={18} color={L3} style={{ marginLeft: 14 }} />
+          <TextInput
+            style={ob.fieldInput}
+            value={zip}
+            onChangeText={setZip}
+            placeholder="e.g. SW1A 1AA"
+            placeholderTextColor={L3}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            autoFocus
+          />
+        </View>
       </ScrollView>
-    </View>
+
+      <View style={[ob.welcomeFooter, { paddingBottom: insets.bottom + 24 }]}>
+        <TouchableOpacity
+          style={ob.cta}
+          onPress={() => onDone({ city: city!, country: cityCountryMap[city!] ?? "", zipcode: zip.trim(), diagnosis: diag! })}
+          activeOpacity={0.82}
+        >
+          <Text style={ob.ctaText}>Find support</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => onDone({ city: city!, country: cityCountryMap[city!] ?? "", zipcode: "", diagnosis: diag! })}>
+          <Text style={ob.skipText}>Skip postcode</Text>
+        </TouchableOpacity>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const ob = StyleSheet.create({
-  tagline:        { fontSize: 22, fontWeight: "600", color: WARM, lineHeight: 30, marginBottom: 4 },
-  divider:        { height: StyleSheet.hairlineWidth, backgroundColor: SEP, marginVertical: 24 },
+  // Hero / welcome
+  heroBlock:    { alignItems: "center", paddingHorizontal: H_PAD, paddingBottom: 36, backgroundColor: CREAM },
+  heroTitle:    { fontSize: 34, fontWeight: "800", color: L1, textAlign: "center", lineHeight: 42, marginBottom: 12 },
+  heroSub:      { fontSize: 17, color: L2, textAlign: "center", lineHeight: 25, paddingHorizontal: 16 },
+
+  welcomeBody:  { flex: 1, paddingHorizontal: H_PAD + 4, paddingTop: 8 },
+  featureRow:   { flexDirection: "row", alignItems: "center", gap: 16, paddingVertical: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: SEP },
+  featureIcon:  { width: 48, height: 48, borderRadius: 14, backgroundColor: "#FFF0E8", alignItems: "center", justifyContent: "center" },
+  featureTitle: { fontSize: 16, fontWeight: "700", color: L1, marginBottom: 2 },
+  featureDesc:  { fontSize: 14, color: L2, lineHeight: 20 },
+
+  welcomeFooter:{ paddingHorizontal: H_PAD, paddingTop: 16 },
+  footerNote:   { fontSize: 13, color: L3, textAlign: "center", marginTop: 12 },
+  skipText:     { fontSize: 15, color: ORANGE, fontWeight: "600", textAlign: "center", marginTop: 14 },
+
+  // Step header
+  stepHeader:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: H_PAD, paddingBottom: 8 },
+  backBtn:      { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
+  stepDots:     { flexDirection: "row", gap: 8 },
+  dot:          { width: 8, height: 8, borderRadius: 4, backgroundColor: SEP },
+  dotActive:    { backgroundColor: ORANGE, width: 24 },
+  dotDone:      { backgroundColor: ORANGE },
+
+  stepContext:     { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
+  stepContextText: { fontSize: 14, fontWeight: "600", color: ORANGE },
+  stepContextSep:  { fontSize: 14, color: L3 },
+  stepTitle:    { fontSize: 30, fontWeight: "800", color: L1, lineHeight: 38, marginBottom: 8 },
+  stepSub:      { fontSize: 16, color: L2, lineHeight: 23, marginBottom: 28 },
+
+  // Shared
   label:          { fontSize: 17, fontWeight: "600", color: L1, marginBottom: 12 },
   optional:       { fontSize: 13, color: L3 },
   postcodeHeader: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 },
 
-  field:      { flexDirection: "row", alignItems: "center", backgroundColor: WHITE, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: SEP, marginBottom: 0 },
-  fieldInput: { flex: 1, paddingHorizontal: 16, paddingVertical: 14, fontSize: 17, color: L1 },
+  field:      { flexDirection: "row", alignItems: "center", backgroundColor: WHITE, borderRadius: 14, gap: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 3 },
+  fieldInput: { flex: 1, paddingHorizontal: 8, paddingVertical: 16, fontSize: 17, color: L1, paddingRight: 16 },
 
-  list:         { marginTop: 4, backgroundColor: WHITE, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: SEP, overflow: "hidden" },
-  listRow:      { paddingHorizontal: 16, paddingVertical: 14 },
+  list:         { marginTop: 8, backgroundColor: WHITE, borderRadius: 14, overflow: "hidden", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 3 },
+  listRow:      { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 15, gap: 12 },
   listRowBorder:{ borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: SEP },
-  listRowText:  { fontSize: 17, color: L1 },
+  listRowText:  { fontSize: 17, color: L1, fontWeight: "500" },
 
   confirmedRow:     { flexDirection: "row", alignItems: "center", gap: 12 },
   confirmedChip:    { backgroundColor: ORANGE, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1.5, borderColor: ORANGE },
   confirmedChipText:{ fontSize: 15, fontWeight: "600", color: WHITE },
   change:           { fontSize: 15, color: ORANGE, fontWeight: "500" },
 
-  chipGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  diagChip:      { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20, backgroundColor: WHITE, borderWidth: StyleSheet.hairlineWidth, borderColor: SEP },
+  chipGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  diagChip:      { paddingHorizontal: 16, paddingVertical: 11, borderRadius: 22, backgroundColor: WHITE, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
   diagChipMuted: { backgroundColor: FILL },
-  diagChipText:  { fontSize: 14, fontWeight: "500", color: L1 },
+  diagChipText:  { fontSize: 15, fontWeight: "500", color: L1 },
 
-  cta:     { marginTop: 28, backgroundColor: ORANGE, borderRadius: 14, paddingVertical: 17, alignItems: "center" },
-  ctaText: { fontSize: 17, fontWeight: "700", color: WHITE },
+  cta:     { backgroundColor: ORANGE, borderRadius: 16, paddingVertical: 18, alignItems: "center", shadowColor: ORANGE, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 6 },
+  ctaText: { fontSize: 18, fontWeight: "700", color: WHITE, letterSpacing: 0.3 },
 });
 
 // ─── Feed card (horizontal scroll) ───────────────────────────────────
@@ -309,7 +429,7 @@ function FeedCard({ resource, accent }: { resource: Resource; accent: string }) 
         <Text style={fdc.desc} numberOfLines={3}>{resource.description}</Text>
         <View style={fdc.footer}>
           <Text style={fdc.location}>
-            {resource.entireCountry ? "UK-wide" : resource.cities.slice(0, 2).join(", ")}
+            {resource.entireCountry ? (resource.countries.length === 1 ? `${resource.countries[0]}-wide` : "Nationwide") : resource.cities.slice(0, 2).join(", ")}
           </Text>
           <Text style={[fdc.visitLink, { color: accent }]}>Visit ›</Text>
         </View>
@@ -348,7 +468,7 @@ function SearchCard({ resource }: { resource: Resource }) {
       </View>
       <Text style={src.desc} numberOfLines={2}>{resource.description}</Text>
       <View style={src.foot}>
-        <Text style={src.loc}>{resource.entireCountry ? "UK-wide" : resource.cities.slice(0, 2).join(", ")}</Text>
+        <Text style={src.loc}>{resource.entireCountry ? (resource.countries.length === 1 ? `${resource.countries[0]}-wide` : "Nationwide") : resource.cities.slice(0, 2).join(", ")}</Text>
         <Text style={[src.link, { color: accent }]}>Visit website</Text>
       </View>
     </TouchableOpacity>
@@ -571,9 +691,13 @@ function HomeTab({
       <FlatList
         data={displayed}
         keyExtractor={r => r.id}
-        renderItem={({ item }) => <SearchCard resource={item} />}
+        renderItem={({ item }) => (
+          <View style={{ paddingHorizontal: H_PAD }}>
+            <SearchCard resource={item} />
+          </View>
+        )}
         ListHeaderComponent={Header}
-        contentContainerStyle={{ paddingHorizontal: H_PAD, paddingBottom: navH + 16 }}
+        contentContainerStyle={{ paddingBottom: navH + 16 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         ListEmptyComponent={

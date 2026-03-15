@@ -141,6 +141,55 @@ eas submit --profile production --platform ios
 cd infra && cdk deploy --require-approval never
 ```
 
+## Bulk Adding Resources by City/Country
+
+When adding resources in bulk for new cities or countries, use this efficient workflow:
+
+### 1. Search for cancer support orgs in target region
+```
+WebSearch: "cancer support charity [COUNTRY/CITY] nonprofit"
+```
+
+### 2. Batch add via curl loop (no approval needed for bulk)
+```bash
+for resource in \
+'{"name":"...","description":"...","helpTypes":[...],"cancerTypes":[...],...}' \
+'{"name":"...","description":"...","helpTypes":[...],"cancerTypes":[...],...}'; do
+  curl -s -X POST https://iutm2kyhqq.us-east-1.awsapprunner.com/resources \
+    -H "Content-Type: application/json" \
+    -d "$resource"
+  echo ""
+done
+```
+
+### 3. Form-field matching — customize these fields:
+- **cancerTypes**: Use specific types from the valid list, or "All"
+- **helpTypes**: Match to the 11 valid types (see below)
+- **treatmentStage**: "All", "Newly Diagnosed", "During Treatment", "Post-Treatment", or "Palliative / End-of-Life"
+- **patientCarer**: "Both", "Patient", or "Carer"
+- **minAge/maxAge**: Set for age-specific resources (e.g. young adults 18-39, children 0-18, seniors 65+)
+- **entireCountry**: true for national orgs, false for city-specific
+- **cities**: Include major cities in the service area with zipcodes
+
+### 4. Coverage goals per country:
+- National "All cancers" general support org
+- Cancer-type-specific orgs (breast, prostate, lung, bowel, blood cancers at minimum)
+- Treatment-stage-specific resources (newly diagnosed, during treatment, post-treatment, palliative)
+- Carer-specific resources
+- Young adult and children-specific resources
+- Financial aid resources
+- Transport/accommodation resources
+
+### Current DB stats (as of March 14 2026):
+- **691 resources** across **186 countries**
+- **523 unique cities** with zipcodes
+- **22 cancer types** covered with dedicated charities per major country
+- **All 11 help types** covered
+- **All 4 treatment stages** + "All" covered (22 Newly Diagnosed, 45 During Treatment, 7 Post-Treatment, 10 Palliative)
+- **38 Patient-only**, **13 Carer-only**, **630 Both** role-targeted resources
+- **14 age-restricted** resources (children 0-18, young adults 15-39, seniors 65+)
+- Covers every continent: Americas (20+ countries), Europe (31+ countries), Asia (23+ countries), Africa (19+ countries), Oceania (4+ countries), Middle East (9+ countries), Caribbean (7+ countries)
+
 ## Key Files
 - `frontend/utils/match.ts` — matching logic with full reasoning
 - `frontend/services/api.ts` — API client + sheet data mapping

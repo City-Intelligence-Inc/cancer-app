@@ -358,6 +358,13 @@ def create_resource(body: CreateResource):
     return {"status": "ok", "resourceId": next_id, "resource": item}
 
 
+@app.delete("/resources/{resource_id}")
+async def delete_resource(resource_id: str):
+    """Delete a resource by ID."""
+    resources_table.delete_item(Key={"resourceId": resource_id})
+    return {"status": "ok", "deleted": resource_id}
+
+
 @app.get("/sync-status")
 async def sync_status():
     """Compare sheet rows vs DynamoDB resources for a live diff view."""

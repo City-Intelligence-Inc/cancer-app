@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   View,
   TextInput,
@@ -6,7 +6,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Platform,
 } from "react-native";
+import * as Location from "expo-location";
 import { useRouter } from "expo-router";
 import StepContainer from "../../components/StepContainer";
 import { useSession } from "../../context/SessionContext";
@@ -22,6 +24,8 @@ export default function LocationStep() {
   const [sheetCities, setSheetCities] = useState<string[]>([]);
   const [cityCountryMap, setCityCountryMap] = useState<Record<string, string>>({});
   const [citiesLoading, setCitiesLoading] = useState(true);
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoError, setGeoError] = useState("");
 
   useEffect(() => {
     Promise.all([getSheetCities(), getSheetCityCountryMap()])
@@ -52,6 +56,72 @@ export default function LocationStep() {
     setQuery(city);
   };
 
+  const handleUseLocation = useCallback(async () => {
+    setGeoLoading(true);
+    setGeoError("");
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        setGeoError("Location access denied. Please type your city instead.");
+        setGeoLoading(false);
+        return;
+      }
+
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const { latitude, longitude } = loc.coords;
+
+      // Reverse geocode with Expo Location
+      const [geo] = await Location.reverseGeocodeAsync({ latitude, longitude });
+      const city = geo?.city || geo?.subregion || geo?.region || "";
+      const postcode = geo?.postalCode || "";
+
+      if (city) {
+        // Try exact match
+        const exact = sheetCities.find(
+          (c) => c.toLowerCase() === city.toLowerCase()
+        );
+        if (exact) {
+          setQuery(exact);
+          if (postcode) setZipcode(postcode);
+        } else {
+          // Try partial match
+          const partial = sheetCities.find(
+            (c) =>
+              c.toLowerCase().includes(city.toLowerCase()) ||
+              city.toLowerCase().includes(c.toLowerCase())
+          );
+          if (partial) {
+            setQuery(partial);
+            if (postcode) setZipcode(postcode);
+          } else {
+            // Try prefix match
+            const nearby = sheetCities.find((c) =>
+              c.toLowerCase().startsWith(city.toLowerCase().slice(0, 3))
+            );
+            if (nearby) {
+              setQuery(nearby);
+              if (postcode) setZipcode(postcode);
+            } else {
+              setQuery(city);
+              if (postcode) setZipcode(postcode);
+              setGeoError(
+                `We detected "${city}" but couldn't find an exact match. Try selecting from suggestions.`
+              );
+            }
+          }
+        }
+      } else {
+        setGeoError("Could not determine your city. Please type it manually.");
+      }
+    } catch {
+      setGeoError("Could not get your location. Please type your city.");
+    } finally {
+      setGeoLoading(false);
+    }
+  }, [sheetCities]);
+
   const handleNext = async () => {
     if (!matchedCity) return;
     setLoading(true);
@@ -73,19 +143,48 @@ export default function LocationStep() {
   return (
     <StepContainer
       heading="Where are you located?"
-      description="Type your city and select it from the list below."
+      description="Share your location or type your city below."
       onNext={handleNext}
       nextDisabled={!isValid}
       loading={loading}
     >
       <View style={styles.container}>
+        {/* Use My Location button */}
+        <TouchableOpacity
+          style={[styles.locationBtn, geoLoading && styles.locationBtnDisabled]}
+          onPress={handleUseLocation}
+          disabled={geoLoading || citiesLoading}
+          activeOpacity={0.7}
+        >
+          {geoLoading ? (
+            <View style={styles.locationBtnContent}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={styles.locationBtnText}>Finding your location...</Text>
+            </View>
+          ) : (
+            <View style={styles.locationBtnContent}>
+              <Text style={styles.locationIcon}>📍</Text>
+              <Text style={styles.locationBtnText}>Use my location</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        {geoError ? (
+          <Text style={styles.geoError}>{geoError}</Text>
+        ) : null}
+
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>or type your city</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
         <TextInput
           style={[styles.input, isValid && styles.inputSelected]}
           value={query}
           onChangeText={setQuery}
           placeholder="e.g. London"
           placeholderTextColor={colors.textSecondary}
-          autoFocus
           autoCapitalize="words"
           autoCorrect={false}
           returnKeyType="done"
@@ -127,12 +226,12 @@ export default function LocationStep() {
 
         {isValid && (
           <View style={styles.zipcodeSection}>
-            <Text style={styles.zipcodeLabel}>Postcode (optional)</Text>
+            <Text style={styles.zipcodeLabel}>Postcode / Zip code (optional)</Text>
             <TextInput
               style={styles.input}
               value={zipcode}
               onChangeText={setZipcode}
-              placeholder="e.g. SW1A 1AA"
+              placeholder="e.g. SW1A 1AA or 94102"
               placeholderTextColor={colors.textSecondary}
               autoCapitalize="characters"
               autoCorrect={false}
@@ -148,6 +247,52 @@ export default function LocationStep() {
 const styles = StyleSheet.create({
   container: {
     marginTop: spacing.sm,
+  },
+  locationBtn: {
+    backgroundColor: "#ecfdf5",
+    borderWidth: 1.5,
+    borderColor: "#a7f3d0",
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  locationBtnDisabled: {
+    opacity: 0.5,
+  },
+  locationBtnContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  locationIcon: {
+    fontSize: 18,
+  },
+  locationBtnText: {
+    fontSize: fontSize.body,
+    fontWeight: "600",
+    color: "#047857",
+  },
+  geoError: {
+    fontSize: fontSize.sm,
+    color: "#d97706",
+    marginBottom: spacing.sm,
+  },
+  divider: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: spacing.sm,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    fontSize: fontSize.sm,
+    color: colors.textSecondary,
+    fontWeight: "500",
   },
   input: {
     backgroundColor: colors.white,

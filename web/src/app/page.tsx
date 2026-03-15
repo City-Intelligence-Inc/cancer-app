@@ -26,6 +26,12 @@ export default function WelcomePage() {
     ["🎯", "Personalized matches"],
   ];
 
+  const stats = [
+    ["1,000+", "Resources"],
+    ["188", "Countries"],
+    ["700+", "Cities"],
+  ];
+
   return (
     <main className="min-h-screen flex items-center justify-center px-6">
       <div className="max-w-md w-full">
@@ -40,11 +46,20 @@ export default function WelcomePage() {
           </p>
         </div>
 
-        <div className="flex flex-col gap-3 mb-12">
+        <div className="flex flex-col gap-3 mb-8">
           {features.map(([icon, text]) => (
             <div key={text} className="flex items-center gap-4 bg-white p-4 rounded-xl">
               <span className="text-xl">{icon}</span>
               <span className="text-base font-medium text-text-primary">{text}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex justify-center gap-6 mb-8">
+          {stats.map(([num, label]) => (
+            <div key={label} className="text-center">
+              <div className="text-2xl font-extrabold text-emerald-600">{num}</div>
+              <div className="text-xs text-text-secondary font-medium">{label}</div>
             </div>
           ))}
         </div>
