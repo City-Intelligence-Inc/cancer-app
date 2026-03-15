@@ -23,7 +23,7 @@
         },
         "NSLocationWhenInUseUsageDescription": "Canopy uses your location to find cancer support resources near you."
       },
-      "buildNumber": "22"
+      "buildNumber": "23"
     },
     "android": {
       "adaptiveIcon": {

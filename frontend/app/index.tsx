@@ -7,6 +7,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import * as Location from "expo-location";
 import { useSession } from "../context/SessionContext";
 import { getSheetCities, getSheetCityCountryMap, getSheetDiagnoses, getAllResources } from "../services/api";
 import { Resource } from "../data/resources";
@@ -84,6 +85,52 @@ function Onboarding({ onDone }: { onDone: (p: UserProfile) => void }) {
   const [diag,     setDiag]     = useState<string | null>(null);
 
   const [zip,      setZip]      = useState("");
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoError, setGeoError] = useState("");
+
+  const handleUseLocation = useCallback(async () => {
+    setGeoLoading(true);
+    setGeoError("");
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        setGeoError("Location access denied. Please search for your city.");
+        setGeoLoading(false);
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const [geo] = await Location.reverseGeocodeAsync(loc.coords);
+      const detectedCity = geo?.city || geo?.subregion || geo?.region || "";
+      if (detectedCity) {
+        const exact = cities.find(c => c.toLowerCase() === detectedCity.toLowerCase());
+        if (exact) {
+          setCity(exact);
+          setCityQ(exact);
+          setStep("diagnosis");
+        } else {
+          const partial = cities.find(c =>
+            c.toLowerCase().includes(detectedCity.toLowerCase()) ||
+            detectedCity.toLowerCase().includes(c.toLowerCase())
+          );
+          if (partial) {
+            setCity(partial);
+            setCityQ(partial);
+            setStep("diagnosis");
+          } else {
+            setCityQ(detectedCity);
+            setGeoError(`Found "${detectedCity}" — pick the closest match below.`);
+          }
+        }
+        if (geo?.postalCode) setZip(geo.postalCode);
+      } else {
+        setGeoError("Couldn't detect your city. Please search manually.");
+      }
+    } catch {
+      setGeoError("Couldn't get location. Please search for your city.");
+    } finally {
+      setGeoLoading(false);
+    }
+  }, [cities]);
 
   const allDiags = useMemo(() => {
     const merged = new Set([...ALL_DIAGNOSES, ...sheetDiags]);
@@ -200,6 +247,33 @@ function Onboarding({ onDone }: { onDone: (p: UserProfile) => void }) {
         >
           <Text style={ob.stepTitle}>Where are you{"\n"}located?</Text>
           <Text style={ob.stepSub}>We'll find support resources available near you.</Text>
+
+          <TouchableOpacity
+            style={[ob.locationBtn, geoLoading && { opacity: 0.5 }]}
+            onPress={handleUseLocation}
+            disabled={geoLoading || citiesLoading}
+            activeOpacity={0.7}
+          >
+            {geoLoading ? (
+              <View style={ob.locationBtnInner}>
+                <ActivityIndicator size="small" color="#047857" />
+                <Text style={ob.locationBtnText}>Finding your location...</Text>
+              </View>
+            ) : (
+              <View style={ob.locationBtnInner}>
+                <Ionicons name="navigate" size={18} color="#047857" />
+                <Text style={ob.locationBtnText}>Use my location</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {geoError ? <Text style={ob.geoError}>{geoError}</Text> : null}
+
+          <View style={ob.dividerRow}>
+            <View style={ob.dividerLine} />
+            <Text style={ob.dividerText}>or search</Text>
+            <View style={ob.dividerLine} />
+          </View>
 
           <View style={ob.field}>
             <Ionicons name="search" size={18} color={L3} style={{ marginLeft: 14 }} />
@@ -409,6 +483,14 @@ const ob = StyleSheet.create({
   diagChip:      { paddingHorizontal: 16, paddingVertical: 11, borderRadius: 22, backgroundColor: WHITE, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
   diagChipMuted: { backgroundColor: FILL },
   diagChipText:  { fontSize: 15, fontWeight: "500", color: L1 },
+
+  locationBtn:      { backgroundColor: "#ecfdf5", borderWidth: 1.5, borderColor: "#a7f3d0", borderRadius: 14, paddingVertical: 16, marginBottom: 10 },
+  locationBtnInner: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  locationBtnText:  { fontSize: 16, fontWeight: "600", color: "#047857" },
+  geoError:         { fontSize: 13, color: "#d97706", marginBottom: 8 },
+  dividerRow:       { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
+  dividerLine:      { flex: 1, height: 1, backgroundColor: SEP },
+  dividerText:      { fontSize: 13, color: L3, fontWeight: "500" },
 
   cta:     { backgroundColor: ORANGE, borderRadius: 16, paddingVertical: 18, alignItems: "center", shadowColor: ORANGE, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 6 },
   ctaText: { fontSize: 18, fontWeight: "700", color: WHITE, letterSpacing: 0.3 },
