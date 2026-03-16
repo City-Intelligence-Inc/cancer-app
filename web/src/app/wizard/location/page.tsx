@@ -45,6 +45,7 @@ export default function LocationPage() {
   const [citiesLoading, setCitiesLoading] = useState(true);
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoError, setGeoError] = useState("");
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
     Promise.all([getSheetCities(), getSheetCityCountryMap()])
@@ -80,6 +81,7 @@ export default function LocationPage() {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
+        setUserCoords({ lat: latitude, lng: longitude });
         try {
           // Reverse geocode with OpenStreetMap Nominatim (free, no key)
           const res = await fetch(
@@ -165,6 +167,10 @@ export default function LocationPage() {
       }
       if (zipcode.trim()) {
         await saveAnswer("zipcode", zipcode.trim());
+      }
+      if (userCoords) {
+        await saveAnswer("lat", userCoords.lat);
+        await saveAnswer("lng", userCoords.lng);
       }
       router.push("/wizard/diagnosis");
     } finally {

@@ -36,6 +36,9 @@ export default function ResourceCard({ resource }: { resource: Resource }) {
       <p className="text-sm text-text-secondary leading-relaxed mb-2">{resource.description}</p>
 
       <p className="text-xs text-text-secondary mb-1">
+        {resource.distanceMiles != null && (
+          <span className="font-semibold text-emerald-600 mr-1">{resource.distanceMiles} mi away ·</span>
+        )}
         {locationLabel} · {eligibilityLabel}
       </p>
       {cancerLabel !== "All cancer types" && (

@@ -183,6 +183,9 @@ interface DbResource {
   contact?: string;
   minAge?: number;
   maxAge?: number;
+  lat?: number;
+  lng?: number;
+  address?: string;
 }
 
 function mapDbResourceToResource(r: DbResource): Resource {
@@ -214,6 +217,9 @@ function mapDbResourceToResource(r: DbResource): Resource {
     contact: r.contact || undefined,
     patientCarer,
     treatmentStage,
+    lat: r.lat != null ? Number(r.lat) : undefined,
+    lng: r.lng != null ? Number(r.lng) : undefined,
+    address: r.address || undefined,
   };
 }
 

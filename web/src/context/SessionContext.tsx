@@ -12,6 +12,8 @@ export interface Answers {
   help_needed?: string[];
   role?: "Patient" | "Carer";
   treatment_stage?: string;
+  lat?: number;
+  lng?: number;
 }
 
 interface SessionContextValue {

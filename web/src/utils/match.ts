@@ -9,6 +9,20 @@ interface Answers {
   help_needed?: string[];
   role?: "Patient" | "Carer";
   treatment_stage?: string;
+  lat?: number;
+  lng?: number;
+}
+
+/** Haversine distance in miles */
+function haversineDistanceMiles(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 3958.8; // Earth radius in miles
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 export interface MatchReason {
@@ -167,7 +181,18 @@ export function matchResourcesWithLog(answers: Answers, resources: Resource[]): 
       // Boost resources with a direct phone number so patients can actually connect
       const hasPhone = !!(r.phone || (r.contact && /[\d\+\(\)]{7,}/.test(r.contact)));
       if (hasPhone) score += 1;
-      matches.push({ resource: r, score, reasons });
+
+      // Compute distance if both user and resource have coordinates
+      const resourceWithDistance = { ...r };
+      if (answers.lat && answers.lng && r.lat && r.lng) {
+        const dist = haversineDistanceMiles(answers.lat, answers.lng, r.lat, r.lng);
+        resourceWithDistance.distanceMiles = Math.round(dist * 10) / 10;
+        // Boost nearby resources (within 10 miles gets +3, within 25 gets +1)
+        if (dist <= 10) score += 3;
+        else if (dist <= 25) score += 1;
+      }
+
+      matches.push({ resource: resourceWithDistance, score, reasons });
     }
   }
 

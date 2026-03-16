@@ -15,6 +15,10 @@ export interface Resource {
   contact?: string;
   patientCarer: "Patient" | "Carer" | "Both";
   treatmentStage: string;
+  lat?: number;
+  lng?: number;
+  address?: string;
+  distanceMiles?: number; // computed at match time
 }
 
 export const HELP_TYPES = [
