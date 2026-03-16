@@ -18,3 +18,6 @@ body {
   background: var(--color-warm-bg);
   color: var(--color-text-primary);
 }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
