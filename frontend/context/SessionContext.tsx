@@ -19,10 +19,11 @@ export interface Answers {
 interface SessionContextValue {
   sessionId: string | null;
   answers: Answers;
-  startSession: () => Promise<void>;
+  startSession: () => Promise<string>;
   saveAnswer: <K extends keyof Answers>(
     key: K,
-    value: Answers[K]
+    value: Answers[K],
+    overrideSessionId?: string
   ) => Promise<void>;
 }
 
@@ -32,24 +33,28 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Answers>({});
 
-  const startSession = useCallback(async () => {
+  const startSession = useCallback(async (): Promise<string> => {
+    let newId: string;
     try {
       const session = await createSession();
-      setSessionId(session.sessionId);
+      newId = session.sessionId;
     } catch {
       // Backend unavailable — use a local session so the app still works
-      setSessionId(generateLocalId());
+      newId = generateLocalId();
     }
+    setSessionId(newId);
     setAnswers({});
+    return newId;
   }, []);
 
   const saveAnswer = useCallback(
-    async <K extends keyof Answers>(key: K, value: Answers[K]) => {
-      if (!sessionId) throw new Error("No active session");
+    async <K extends keyof Answers>(key: K, value: Answers[K], overrideSessionId?: string) => {
+      const id = overrideSessionId ?? sessionId;
+      if (!id) throw new Error("No active session");
       setAnswers((prev) => ({ ...prev, [key]: value }));
       // Skip remote save for local sessions
-      if (!sessionId.startsWith("local-")) {
-        await updateSession(sessionId, { [key]: value }).catch(() => {});
+      if (!id.startsWith("local-")) {
+        await updateSession(id, { [key]: value }).catch(() => {});
       }
     },
     [sessionId]

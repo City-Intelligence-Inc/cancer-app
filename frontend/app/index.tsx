@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, ScrollView,
   StyleSheet, ActivityIndicator, Linking, Dimensions, Platform, Image,
-  KeyboardAvoidingView,
+  KeyboardAvoidingView, Modal,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -495,13 +495,154 @@ const ob = StyleSheet.create({
   ctaText: { fontSize: 18, fontWeight: "700", color: WHITE, letterSpacing: 0.3 },
 });
 
+// ─── Resource detail sheet ────────────────────────────────────────────
+
+function openContact(contact?: string) {
+  if (!contact) return;
+  const url = contact.includes("@") ? `mailto:${contact}` : contact;
+  Linking.openURL(url).catch(() => {});
+}
+
+function ResourceDetailSheet({ resource, onClose }: { resource: Resource | null; onClose: () => void }) {
+  if (!resource) return null;
+  const cat    = resource.helpTypes[0] ?? null;
+  const accent = cat ? (CATS[cat]?.accent ?? ORANGE) : ORANGE;
+  const location = resource.entireCountry
+    ? (resource.countries.length === 1 ? `${resource.countries[0]}-wide` : "Nationwide")
+    : resource.cities.join(", ");
+
+  return (
+    <Modal
+      visible={!!resource}
+      animationType="slide"
+      transparent
+      onRequestClose={onClose}
+    >
+      <TouchableOpacity style={ds.backdrop} activeOpacity={1} onPress={onClose} />
+      <View style={ds.sheet}>
+        {/* Drag handle */}
+        <View style={ds.handleWrap}><View style={ds.handle} /></View>
+
+        {/* Accent bar */}
+        <View style={[ds.accentBar, { backgroundColor: accent }]} />
+
+        <ScrollView style={ds.scroll} contentContainerStyle={ds.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Name */}
+          <Text style={ds.name}>{resource.name}</Text>
+
+          {/* Help type tags */}
+          <View style={ds.tags}>
+            {resource.helpTypes.map(h => (
+              <View key={h} style={[ds.tag, { backgroundColor: accent + "18" }]}>
+                <Text style={[ds.tagTxt, { color: accent }]}>{h}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Description */}
+          <Text style={ds.desc}>{resource.description}</Text>
+
+          {/* Location */}
+          <View style={ds.metaRow}>
+            <Ionicons name="location-outline" size={14} color={L3} />
+            <Text style={ds.metaTxt}>{location}</Text>
+          </View>
+
+          {/* Divider */}
+          <View style={ds.divider} />
+
+          {/* Action buttons */}
+          <View style={ds.actions}>
+            {!!resource.url && (
+              <TouchableOpacity
+                style={ds.actionBtn}
+                onPress={() => Linking.openURL(resource.url).catch(() => {})}
+                activeOpacity={0.75}
+              >
+                <View style={[ds.actionIcon, { backgroundColor: accent + "18" }]}>
+                  <Ionicons name="globe-outline" size={22} color={accent} />
+                </View>
+                <Text style={ds.actionLbl}>Website</Text>
+              </TouchableOpacity>
+            )}
+
+            {!!resource.contact && (
+              <TouchableOpacity
+                style={ds.actionBtn}
+                onPress={() => openContact(resource.contact)}
+                activeOpacity={0.75}
+              >
+                <View style={[ds.actionIcon, { backgroundColor: accent + "18" }]}>
+                  <Ionicons name="mail-outline" size={22} color={accent} />
+                </View>
+                <Text style={ds.actionLbl}>Contact</Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              style={ds.actionBtn}
+              onPress={() => {
+                const query = encodeURIComponent(resource.name + " " + (resource.cities[0] ?? ""));
+                Linking.openURL(`maps://?q=${query}`).catch(() =>
+                  Linking.openURL(`https://maps.google.com/?q=${query}`)
+                );
+              }}
+              activeOpacity={0.75}
+            >
+              <View style={[ds.actionIcon, { backgroundColor: accent + "18" }]}>
+                <Ionicons name="map-outline" size={22} color={accent} />
+              </View>
+              <Text style={ds.actionLbl}>Directions</Text>
+            </TouchableOpacity>
+
+            {!!resource.phone && (
+              <TouchableOpacity
+                style={ds.actionBtn}
+                onPress={() => Linking.openURL(`tel:${resource.phone}`).catch(() => {})}
+                activeOpacity={0.75}
+              >
+                <View style={[ds.actionIcon, { backgroundColor: accent + "18" }]}>
+                  <Ionicons name="call-outline" size={22} color={accent} />
+                </View>
+                <Text style={ds.actionLbl}>Call</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
+const ds = StyleSheet.create({
+  backdrop:     { flex: 1, backgroundColor: "rgba(0,0,0,0.35)" },
+  sheet:        { backgroundColor: WHITE, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: "75%", overflow: "hidden" },
+  handleWrap:   { alignItems: "center", paddingTop: 12, paddingBottom: 4 },
+  handle:       { width: 36, height: 4, borderRadius: 2, backgroundColor: SEP },
+  accentBar:    { height: 3, marginHorizontal: 20, borderRadius: 2, marginBottom: 16 },
+  scroll:       { flexGrow: 0 },
+  scrollContent:{ paddingHorizontal: 20, paddingBottom: 32 },
+  name:         { fontSize: 22, fontWeight: "700", color: L1, lineHeight: 28, marginBottom: 12 },
+  tags:         { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 14 },
+  tag:          { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+  tagTxt:       { fontSize: 12, fontWeight: "600" },
+  desc:         { fontSize: 15, color: L2, lineHeight: 22, marginBottom: 14 },
+  metaRow:      { flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 4 },
+  metaTxt:      { fontSize: 13, color: L3 },
+  divider:      { height: 1, backgroundColor: SEP, marginVertical: 20 },
+  actions:      { flexDirection: "row", justifyContent: "space-around", paddingHorizontal: 8 },
+  actionBtn:    { alignItems: "center", gap: 8 },
+  actionIcon:   { width: 56, height: 56, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  actionLbl:    { fontSize: 12, color: L2, fontWeight: "500" },
+});
+
 // ─── Feed card (horizontal scroll) ───────────────────────────────────
 
-function FeedCard({ resource, accent }: { resource: Resource; accent: string }) {
+function FeedCard({ resource, accent, onPress }: { resource: Resource; accent: string; onPress: () => void }) {
   return (
     <TouchableOpacity
       style={[fdc.card, { width: CARD_W }]}
-      onPress={() => Linking.openURL(resource.url).catch(() => {})}
+      onPress={onPress}
       activeOpacity={0.88}
     >
       <View style={[fdc.bar, { backgroundColor: accent }]} />
@@ -532,7 +673,7 @@ const fdc = StyleSheet.create({
 
 // ─── Search result card (vertical) ───────────────────────────────────
 
-function SearchCard({ resource }: { resource: Resource }) {
+function SearchCard({ resource, onPress }: { resource: Resource; onPress: () => void }) {
   const cat    = resource.helpTypes[0] ?? null;
   const accent = cat ? (CATS[cat]?.accent ?? ORANGE) : ORANGE;
   const label  = cat ? (CATS[cat]?.label ?? cat) : null;
@@ -540,7 +681,7 @@ function SearchCard({ resource }: { resource: Resource }) {
   return (
     <TouchableOpacity
       style={[src.card, { borderLeftColor: accent }]}
-      onPress={() => Linking.openURL(resource.url).catch(() => {})}
+      onPress={onPress}
       activeOpacity={0.88}
     >
       <View style={src.top}>
@@ -569,8 +710,8 @@ const src = StyleSheet.create({
 
 // ─── Section row ─────────────────────────────────────────────────────
 
-function SectionRow({ label, accent, resources, isFeatured }: {
-  label: string; accent?: string; resources: Resource[]; isFeatured?: boolean;
+function SectionRow({ label, accent, resources, isFeatured, onSelect }: {
+  label: string; accent?: string; resources: Resource[]; isFeatured?: boolean; onSelect: (r: Resource) => void;
 }) {
   const color = accent ?? ORANGE;
   return (
@@ -588,7 +729,7 @@ function SectionRow({ label, accent, resources, isFeatured }: {
           const itemAccent = isFeatured
             ? (cat ? (CATS[cat]?.accent ?? ORANGE) : ORANGE)
             : color;
-          return <FeedCard resource={item} accent={itemAccent} />;
+          return <FeedCard resource={item} accent={itemAccent} onPress={() => onSelect(item)} />;
         }}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingLeft: H_PAD, paddingRight: 8 }}
@@ -613,9 +754,10 @@ function HomeTab({
 }: {
   profile: UserProfile; navH: number; onRefine: () => void;
 }) {
-  const [resources, setResources] = useState<Resource[] | null>(null);
-  const [search,    setSearch]    = useState("");
-  const [activeCat, setActiveCat] = useState<string | null>(null);
+  const [resources,   setResources]   = useState<Resource[] | null>(null);
+  const [search,      setSearch]      = useState("");
+  const [activeCat,   setActiveCat]   = useState<string | null>(null);
+  const [selected,    setSelected]    = useState<Resource | null>(null);
 
   useEffect(() => {
     getAllResources().then(setResources).catch(() => setResources([]));
@@ -769,40 +911,46 @@ function HomeTab({
 
   if (isFiltered) {
     return (
+      <>
+        <FlatList
+          data={displayed}
+          keyExtractor={r => r.id}
+          renderItem={({ item }) => (
+            <View style={{ paddingHorizontal: H_PAD }}>
+              <SearchCard resource={item} onPress={() => setSelected(item)} />
+            </View>
+          )}
+          ListHeaderComponent={Header}
+          contentContainerStyle={{ paddingBottom: navH + 16 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          ListEmptyComponent={
+            <View style={ht.emptyWrap}>
+              <Text style={ht.emptyTitle}>No results</Text>
+              <Text style={ht.emptySub}>Try a different search term or category.</Text>
+            </View>
+          }
+        />
+        <ResourceDetailSheet resource={selected} onClose={() => setSelected(null)} />
+      </>
+    );
+  }
+
+  return (
+    <>
       <FlatList
-        data={displayed}
-        keyExtractor={r => r.id}
-        renderItem={({ item }) => (
-          <View style={{ paddingHorizontal: H_PAD }}>
-            <SearchCard resource={item} />
-          </View>
+        data={sections}
+        keyExtractor={s => s.key}
+        renderItem={({ item: s }) => (
+          <SectionRow label={s.label} accent={s.accent} resources={s.resources} isFeatured={s.isFeatured} onSelect={setSelected} />
         )}
         ListHeaderComponent={Header}
         contentContainerStyle={{ paddingBottom: navH + 16 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        ListEmptyComponent={
-          <View style={ht.emptyWrap}>
-            <Text style={ht.emptyTitle}>No results</Text>
-            <Text style={ht.emptySub}>Try a different search term or category.</Text>
-          </View>
-        }
       />
-    );
-  }
-
-  return (
-    <FlatList
-      data={sections}
-      keyExtractor={s => s.key}
-      renderItem={({ item: s }) => (
-        <SectionRow label={s.label} accent={s.accent} resources={s.resources} isFeatured={s.isFeatured} />
-      )}
-      ListHeaderComponent={Header}
-      contentContainerStyle={{ paddingBottom: navH + 16 }}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-    />
+      <ResourceDetailSheet resource={selected} onClose={() => setSelected(null)} />
+    </>
   );
 }
 
@@ -847,6 +995,7 @@ const ht = StyleSheet.create({
 function SearchTab({ navH }: { navH: number }) {
   const [resources, setResources] = useState<Resource[] | null>(null);
   const [search,    setSearch]    = useState("");
+  const [selected,  setSelected]  = useState<Resource | null>(null);
 
   useEffect(() => {
     getAllResources().then(setResources).catch(() => setResources([]));
@@ -864,47 +1013,50 @@ function SearchTab({ navH }: { navH: number }) {
   }, [resources, search]);
 
   return (
-    <FlatList
-      data={results}
-      keyExtractor={r => r.id}
-      renderItem={({ item }) => <SearchCard resource={item} />}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-      contentContainerStyle={{ paddingHorizontal: H_PAD, paddingBottom: navH + 16 }}
-      ListHeaderComponent={
-        <View style={st.header}>
-          <Text style={st.title}>Explore</Text>
-          <View style={st.searchPill}>
-            <Ionicons name="search" size={16} color={L3} style={{ marginLeft: 2 }} />
-            <TextInput
-              style={st.searchInput}
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Search all resources…"
-              placeholderTextColor={L3}
-              autoCorrect={false}
-              clearButtonMode="while-editing"
-              autoFocus
-            />
+    <>
+      <FlatList
+        data={results}
+        keyExtractor={r => r.id}
+        renderItem={({ item }) => <SearchCard resource={item} onPress={() => setSelected(item)} />}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingHorizontal: H_PAD, paddingBottom: navH + 16 }}
+        ListHeaderComponent={
+          <View style={st.header}>
+            <Text style={st.title}>Explore</Text>
+            <View style={st.searchPill}>
+              <Ionicons name="search" size={16} color={L3} style={{ marginLeft: 2 }} />
+              <TextInput
+                style={st.searchInput}
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Search all resources…"
+                placeholderTextColor={L3}
+                autoCorrect={false}
+                clearButtonMode="while-editing"
+                autoFocus
+              />
+            </View>
+            {search.trim().length > 0 && (
+              <Text style={st.count}>{results.length} result{results.length !== 1 ? "s" : ""}</Text>
+            )}
           </View>
-          {search.trim().length > 0 && (
-            <Text style={st.count}>{results.length} result{results.length !== 1 ? "s" : ""}</Text>
-          )}
-        </View>
-      }
-      ListEmptyComponent={
-        !resources ? (
-          <View style={{ alignItems: "center", paddingTop: 48 }}>
-            <ActivityIndicator size="large" color={ORANGE} />
-          </View>
-        ) : (
-          <View style={ht.emptyWrap}>
-            <Text style={ht.emptyTitle}>No results</Text>
-            <Text style={ht.emptySub}>Try a different search term.</Text>
-          </View>
-        )
-      }
-    />
+        }
+        ListEmptyComponent={
+          !resources ? (
+            <View style={{ alignItems: "center", paddingTop: 48 }}>
+              <ActivityIndicator size="large" color={ORANGE} />
+            </View>
+          ) : (
+            <View style={ht.emptyWrap}>
+              <Text style={ht.emptyTitle}>No results</Text>
+              <Text style={ht.emptySub}>Try a different search term.</Text>
+            </View>
+          )
+        }
+      />
+      <ResourceDetailSheet resource={selected} onClose={() => setSelected(null)} />
+    </>
   );
 }
 
@@ -1060,13 +1212,14 @@ export default function HomeScreen() {
   const navH = NAV_H + insets.bottom;
 
   const handleRefine = useCallback(async () => {
-    await startSession();
-    // Pre-populate location + diagnosis so wizard skips those steps
+    const sid = await startSession();
+    // Pre-populate location + diagnosis so wizard skips those steps.
+    // Pass sid directly — React state may not have updated yet.
     if (profile) {
-      await saveAnswer("location", profile.city);
-      if (profile.country) await saveAnswer("country", profile.country);
-      if (profile.zipcode) await saveAnswer("zipcode", profile.zipcode);
-      await saveAnswer("diagnosis", profile.diagnosis);
+      await saveAnswer("location", profile.city, sid);
+      if (profile.country) await saveAnswer("country", profile.country, sid);
+      if (profile.zipcode) await saveAnswer("zipcode", profile.zipcode, sid);
+      await saveAnswer("diagnosis", profile.diagnosis, sid);
     }
     router.push("/wizard/age");
   }, [startSession, saveAnswer, profile, router]);
