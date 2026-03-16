@@ -28,7 +28,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#F9F2E7"
       },
       "package": "com.cityintelligence.cancersupport",
       "edgeToEdgeEnabled": true,
