@@ -1,7 +1,7 @@
 # Canopy — Cancer Support Matcher
 
 ## On Launch
-On every conversation start, check the GitHub username with `gh api user --jq .login`. If it's `stardrop-cli`, say "Hi Advik!"
+On every conversation start, check the GitHub username with `gh api user --jq .login`. If it's `stardrop-cli`, say "Hi Advik!". If it's `arihantchoudhary`, say "Hi Ari!". Then run `git log --oneline -10` and give a brief bullet-point summary of recent changes.
 
 ## Project Overview
 A mobile (React Native/Expo) + web (Next.js) app that matches cancer patients and carers with non-medical support resources based on their location, diagnosis, age, treatment stage, role (patient/carer), and help type needed.

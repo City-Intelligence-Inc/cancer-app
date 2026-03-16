@@ -311,6 +311,9 @@ class CreateResource(BaseModel):
     treatmentStage: str = "All"
     websiteUrl: str = ""
     contact: str = ""
+    address: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
 
 
 @app.get("/resources")
@@ -353,9 +356,48 @@ def create_resource(body: CreateResource):
         item["minAge"] = Decimal(str(body.minAge))
     if body.maxAge is not None:
         item["maxAge"] = Decimal(str(body.maxAge))
+    if body.address is not None:
+        item["address"] = body.address
+    if body.lat is not None:
+        item["lat"] = Decimal(str(body.lat))
+    if body.lng is not None:
+        item["lng"] = Decimal(str(body.lng))
 
     resources_table.put_item(Item=item)
     return {"status": "ok", "resourceId": next_id, "resource": item}
+
+
+class UpdateResource(BaseModel):
+    address: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    contact: Optional[str] = None
+
+
+@app.patch("/resources/{resource_id}")
+def patch_resource(resource_id: str, body: UpdateResource):
+    """Update specific fields on an existing resource."""
+    updates = {}
+    if body.address is not None:
+        updates["address"] = body.address
+    if body.lat is not None:
+        updates["lat"] = Decimal(str(body.lat))
+    if body.lng is not None:
+        updates["lng"] = Decimal(str(body.lng))
+    if body.contact is not None:
+        updates["contact"] = body.contact
+    if not updates:
+        return {"status": "noop"}
+    expr = "SET " + ", ".join(f"#{k} = :{k}" for k in updates)
+    names = {f"#{k}": k for k in updates}
+    values = {f":{k}": v for k, v in updates.items()}
+    resources_table.update_item(
+        Key={"resourceId": resource_id},
+        UpdateExpression=expr,
+        ExpressionAttributeNames=names,
+        ExpressionAttributeValues=values,
+    )
+    return {"status": "ok", "updated": resource_id, "fields": list(updates.keys())}
 
 
 @app.delete("/resources/{resource_id}")

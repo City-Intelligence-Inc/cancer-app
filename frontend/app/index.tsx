@@ -64,7 +64,7 @@ const CAT_ORDER = [
 // ─── Types ────────────────────────────────────────────────────────────
 
 interface UserProfile { city: string; country: string; zipcode: string; diagnosis: string }
-type Tab = "home" | "search" | "profile";
+type Tab = "home" | "search" | "map" | "profile";
 
 // ─── Onboarding ──────────────────────────────────────────────────────
 
@@ -1146,6 +1146,212 @@ const pt = StyleSheet.create({
   footNote:   { marginTop: 20, fontSize: 13, color: L3, textAlign: "center", lineHeight: 18, paddingHorizontal: 8 },
 });
 
+// ─── Map tab ─────────────────────────────────────────────────────────
+
+import Mapbox from "@rnmapbox/maps";
+
+import Constants from "expo-constants";
+const MAPBOX_TOKEN = Constants.expoConfig?.extra?.MAPBOX_TOKEN ?? process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? "";
+Mapbox.setAccessToken(MAPBOX_TOKEN);
+
+interface MapResource {
+  id: string;
+  name: string;
+  description: string;
+  lat: number;
+  lng: number;
+  url: string;
+  contact?: string;
+  helpTypes: string[];
+  cities: string[];
+  address?: string;
+}
+
+function MapTab({ profile, navH }: { profile: UserProfile; navH: number }) {
+  const [resources, setResources] = useState<MapResource[]>([]);
+  const [selected, setSelected] = useState<MapResource | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("https://iutm2kyhqq.us-east-1.awsapprunner.com/resources")
+      .then(r => r.json())
+      .then(data => {
+        const all = (data.resources || [])
+          .filter((r: any) => r.lat && r.lng)
+          .map((r: any) => ({
+            id: r.resourceId,
+            name: r.name,
+            description: r.description || "",
+            lat: parseFloat(r.lat),
+            lng: parseFloat(r.lng),
+            url: r.websiteUrl || "",
+            contact: r.contact || "",
+            helpTypes: r.helpTypes || [],
+            cities: r.cities || [],
+            address: r.address || "",
+          }));
+        // Filter to resources matching user's city/country
+        const matched = all.filter((r: MapResource) => {
+          const cityMatch = r.cities.some(c => c.toLowerCase() === profile.city.toLowerCase());
+          return cityMatch;
+        });
+        // If few local results, also include country-level
+        if (matched.length < 5) {
+          const countryRes = all.filter((r: MapResource) =>
+            r.address?.toLowerCase().includes(profile.country.toLowerCase())
+          );
+          const ids = new Set(matched.map((m: MapResource) => m.id));
+          for (const cr of countryRes) {
+            if (!ids.has(cr.id)) matched.push(cr);
+          }
+        }
+        setResources(matched);
+      })
+      .catch(() => setResources([]))
+      .finally(() => setLoading(false));
+  }, [profile]);
+
+  // Find center: user's city coords from resources, or first resource
+  const center = useMemo(() => {
+    const local = resources.find(r =>
+      r.cities.some(c => c.toLowerCase() === profile.city.toLowerCase())
+    );
+    if (local) return [local.lng, local.lat];
+    if (resources.length > 0) return [resources[0].lng, resources[0].lat];
+    return [-0.1276, 51.5074]; // London fallback
+  }, [resources, profile.city]);
+
+  const openDirections = (r: MapResource) => {
+    const label = encodeURIComponent(r.name);
+    const url = Platform.select({
+      ios: `maps://app?daddr=${r.lat},${r.lng}&q=${label}`,
+      default: `https://www.google.com/maps/dir/?api=1&destination=${r.lat},${r.lng}&destination_place_id=${label}`,
+    });
+    if (url) Linking.openURL(url).catch(() => {});
+  };
+
+  if (loading) {
+    return (
+      <View style={mt.center}>
+        <ActivityIndicator size="large" color={ORANGE} />
+        <Text style={mt.loadText}>Loading map...</Text>
+      </View>
+    );
+  }
+
+  const pinColor = (r: MapResource) => {
+    const cat = r.helpTypes[0];
+    return cat ? (CATS[cat]?.accent ?? ORANGE) : ORANGE;
+  };
+
+  return (
+    <View style={{ flex: 1 }}>
+      <Mapbox.MapView
+        style={{ flex: 1 }}
+        styleURL={Mapbox.StyleURL.Street}
+        logoEnabled={false}
+        attributionEnabled={false}
+        scaleBarEnabled={false}
+      >
+        <Mapbox.Camera
+          defaultSettings={{ centerCoordinate: center, zoomLevel: 11 }}
+          animationMode="flyTo"
+          animationDuration={1000}
+        />
+
+        {resources.map(r => (
+          <Mapbox.PointAnnotation
+            key={r.id}
+            id={r.id}
+            coordinate={[r.lng, r.lat]}
+            onSelected={() => setSelected(r)}
+          >
+            <View style={[mt.pin, { backgroundColor: pinColor(r) }]}>
+              <View style={mt.pinDot} />
+            </View>
+          </Mapbox.PointAnnotation>
+        ))}
+      </Mapbox.MapView>
+
+      {/* Resource count badge */}
+      <View style={mt.countBadge}>
+        <Text style={mt.countText}>{resources.length} resources near {profile.city}</Text>
+      </View>
+
+      {/* Selected resource card */}
+      {selected && (
+        <View style={[mt.card, { bottom: navH + 12 }]}>
+          <TouchableOpacity style={mt.cardClose} onPress={() => setSelected(null)} hitSlop={12}>
+            <Ionicons name="close" size={20} color={L2} />
+          </TouchableOpacity>
+          <Text style={mt.cardName} numberOfLines={1}>{selected.name}</Text>
+          <Text style={mt.cardDesc} numberOfLines={2}>{selected.description}</Text>
+          <View style={mt.cardChips}>
+            {selected.helpTypes.slice(0, 3).map(h => (
+              <Text key={h} style={[mt.cardChip, { color: CATS[h]?.accent ?? ORANGE }]}>
+                {CATS[h]?.label ?? h}
+              </Text>
+            ))}
+          </View>
+          <View style={mt.cardActions}>
+            <TouchableOpacity
+              style={mt.directionsBtn}
+              onPress={() => openDirections(selected)}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="navigate" size={16} color={WHITE} />
+              <Text style={mt.directionsBtnText}>Directions</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={mt.visitBtn}
+              onPress={() => Linking.openURL(selected.url).catch(() => {})}
+              activeOpacity={0.75}
+            >
+              <Text style={mt.visitBtnText}>Visit website</Text>
+            </TouchableOpacity>
+            {(() => {
+              const phone = selected.contact?.match(/([\+]?[\d][\d\s\-\(\)]{6,}[\d])/);
+              if (!phone) return null;
+              return (
+                <TouchableOpacity
+                  style={mt.callBtn}
+                  onPress={() => Linking.openURL(`tel:${phone[1].replace(/\s/g, "")}`).catch(() => {})}
+                  activeOpacity={0.75}
+                >
+                  <Ionicons name="call" size={14} color="#047857" />
+                  <Text style={mt.callBtnText}>Call</Text>
+                </TouchableOpacity>
+              );
+            })()}
+          </View>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const mt = StyleSheet.create({
+  center:     { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
+  loadText:   { fontSize: 15, color: L2, marginTop: 8 },
+  pin:        { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", borderWidth: 3, borderColor: WHITE, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5 },
+  pinDot:     { width: 8, height: 8, borderRadius: 4, backgroundColor: WHITE },
+  countBadge: { position: "absolute", top: 12, left: H_PAD, right: H_PAD, backgroundColor: "rgba(255,255,255,0.95)", borderRadius: 12, paddingVertical: 10, paddingHorizontal: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 },
+  countText:  { fontSize: 14, fontWeight: "600", color: L1, textAlign: "center" },
+  card:       { position: "absolute", left: 12, right: 12, backgroundColor: WHITE, borderRadius: 20, padding: 18, shadowColor: "#000", shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 10 },
+  cardClose:  { position: "absolute", top: 14, right: 14, zIndex: 1 },
+  cardName:   { fontSize: 18, fontWeight: "700", color: L1, marginBottom: 4, paddingRight: 28 },
+  cardDesc:   { fontSize: 14, color: L2, lineHeight: 20, marginBottom: 10 },
+  cardChips:  { flexDirection: "row", gap: 8, marginBottom: 14 },
+  cardChip:   { fontSize: 12, fontWeight: "600" },
+  cardActions:{ flexDirection: "row", gap: 8 },
+  directionsBtn:     { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: ORANGE, borderRadius: 12, paddingVertical: 12 },
+  directionsBtnText: { fontSize: 14, fontWeight: "700", color: WHITE },
+  visitBtn:          { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: FILL, borderRadius: 12, paddingVertical: 12 },
+  visitBtnText:      { fontSize: 14, fontWeight: "600", color: L1 },
+  callBtn:           { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, backgroundColor: "#ecfdf5", borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14 },
+  callBtnText:       { fontSize: 14, fontWeight: "600", color: "#047857" },
+});
+
 // ─── Bottom nav ───────────────────────────────────────────────────────
 
 function BottomNav({ tab, setTab, bottomInset }: {
@@ -1155,6 +1361,7 @@ function BottomNav({ tab, setTab, bottomInset }: {
   const items: { id: Tab; label: string; icon: string; iconActive: string }[] = [
     { id: "home",    label: "Home",    icon: "home-outline",    iconActive: "home" },
     { id: "search",  label: "Explore", icon: "compass-outline", iconActive: "compass" },
+    { id: "map",     label: "Map",     icon: "map-outline",     iconActive: "map" },
     { id: "profile", label: "Me",      icon: "person-outline",  iconActive: "person" },
   ];
 
@@ -1232,6 +1439,7 @@ export default function HomeScreen() {
       <View style={{ flex: 1, paddingTop: insets.top }}>
         {tab === "home"    && <HomeTab profile={profile} navH={navH} onRefine={handleRefine} />}
         {tab === "search"  && <SearchTab navH={navH} />}
+        {tab === "map"     && <MapTab profile={profile} navH={navH} />}
         {tab === "profile" && <ProfileTab profile={profile} onEdit={() => setProfile(null)} navH={navH} />}
       </View>
 
