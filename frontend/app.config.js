@@ -1,4 +1,5 @@
 const MAPBOX_TOKEN = process.env.MAPBOX_TOKEN || "";
+const MAPBOX_DOWNLOAD_TOKEN = process.env.MAPBOX_DOWNLOAD_TOKEN || MAPBOX_TOKEN;
 
 module.exports = ({ config }) => {
   const plugins = (config.plugins || []).map((p) => {
@@ -6,7 +7,7 @@ module.exports = ({ config }) => {
       return [
         "@rnmapbox/maps",
         {
-          RNMapboxMapsDownloadToken: MAPBOX_TOKEN,
+          RNMapboxMapsDownloadToken: MAPBOX_DOWNLOAD_TOKEN,
         },
       ];
     }
