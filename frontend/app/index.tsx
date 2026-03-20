@@ -1165,12 +1165,25 @@ interface MapResource {
   helpTypes: string[];
   cities: string[];
   address?: string;
+  entireCountry: boolean;
 }
 
 function MapTab({ profile, navH }: { profile: UserProfile; navH: number }) {
-  const [resources, setResources] = useState<MapResource[]>([]);
-  const [selected, setSelected] = useState<MapResource | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [resources,    setResources]    = useState<MapResource[]>([]);
+  const [selected,     setSelected]     = useState<MapResource | null>(null);
+  const [loading,      setLoading]      = useState(true);
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+
+  // Request location permission and get user's GPS coords
+  useEffect(() => {
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === "granted") {
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        setUserLocation([pos.coords.longitude, pos.coords.latitude]);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     fetch("https://iutm2kyhqq.us-east-1.awsapprunner.com/resources")
@@ -1189,37 +1202,29 @@ function MapTab({ profile, navH }: { profile: UserProfile; navH: number }) {
             helpTypes: r.helpTypes || [],
             cities: r.cities || [],
             address: r.address || "",
+            entireCountry: !!r.entireCountry,
           }));
-        // Filter to resources matching user's city/country
+        // Only pin city-specific resources — national orgs shown in list below map
         const matched = all.filter((r: MapResource) => {
-          const cityMatch = r.cities.some(c => c.toLowerCase() === profile.city.toLowerCase());
-          return cityMatch;
+          if (r.entireCountry) return false;
+          return r.cities.some(c => c.toLowerCase() === profile.city.toLowerCase());
         });
-        // If few local results, also include country-level
-        if (matched.length < 5) {
-          const countryRes = all.filter((r: MapResource) =>
-            r.address?.toLowerCase().includes(profile.country.toLowerCase())
-          );
-          const ids = new Set(matched.map((m: MapResource) => m.id));
-          for (const cr of countryRes) {
-            if (!ids.has(cr.id)) matched.push(cr);
-          }
-        }
         setResources(matched);
       })
       .catch(() => setResources([]))
       .finally(() => setLoading(false));
   }, [profile]);
 
-  // Find center: user's city coords from resources, or first resource
-  const center = useMemo(() => {
+  // Center: real GPS > first city-matched resource > London fallback
+  const center = useMemo((): [number, number] => {
+    if (userLocation) return userLocation;
     const local = resources.find(r =>
       r.cities.some(c => c.toLowerCase() === profile.city.toLowerCase())
     );
     if (local) return [local.lng, local.lat];
     if (resources.length > 0) return [resources[0].lng, resources[0].lat];
-    return [-0.1276, 51.5074]; // London fallback
-  }, [resources, profile.city]);
+    return [-0.1276, 51.5074];
+  }, [userLocation, resources, profile.city]);
 
   const openDirections = (r: MapResource) => {
     const label = encodeURIComponent(r.name);
@@ -1259,6 +1264,14 @@ function MapTab({ profile, navH }: { profile: UserProfile; navH: number }) {
           animationDuration={1000}
         />
 
+        {/* Blue dot — same as Apple Maps */}
+        <Mapbox.UserLocation
+          visible
+          animated
+          renderMode="native"
+          androidRenderMode="compass"
+        />
+
         {resources.map(r => (
           <Mapbox.PointAnnotation
             key={r.id}
@@ -1275,7 +1288,9 @@ function MapTab({ profile, navH }: { profile: UserProfile; navH: number }) {
 
       {/* Resource count badge */}
       <View style={mt.countBadge}>
-        <Text style={mt.countText}>{resources.length} resources near {profile.city}</Text>
+        <Text style={mt.countText}>
+          {resources.length} {resources.length === 1 ? "resource" : "resources"} near {profile.city}
+        </Text>
       </View>
 
       {/* Selected resource card */}
