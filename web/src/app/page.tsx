@@ -113,65 +113,95 @@ function Onboarding({ onDone }: { onDone: (p: UserProfile) => void }) {
   // ── Welcome screen ──
   if (step === "welcome") {
     return (
-      <div className="min-h-screen flex flex-col" style={{ background: CREAM }}>
-        {/* Hero block */}
-        <div className="flex flex-col items-center pt-16 pb-8 px-6">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/canopy-logo.png" alt="Canopy" width={88} height={88} className="mb-5 object-contain" />
-          <h1 className="text-4xl font-extrabold text-center mb-3 leading-tight" style={{ color: L1 }}>
-            Find support<br/>that fits you
-          </h1>
-          <p className="text-base text-center leading-relaxed" style={{ color: L2, maxWidth: 320 }}>
-            Matched to your location, diagnosis, and needs — in under 2 minutes.
-          </p>
-        </div>
+      <div className="min-h-screen flex flex-col items-center justify-center" style={{ background: CREAM }}>
+        <div className="w-full flex flex-col" style={{ maxWidth: 480, padding: "0 24px" }}>
+          {/* Hero block */}
+          <div className="flex flex-col items-center pt-12 pb-8">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/canopy-logo.png" alt="Canopy" width={88} height={88} className="mb-5" style={{ objectFit: "contain" }} />
+            <h1 className="text-4xl font-extrabold text-center mb-3 leading-tight" style={{ color: L1 }}>
+              Find support<br/>that fits you
+            </h1>
+            <p className="text-base text-center leading-relaxed" style={{ color: L2, maxWidth: 300 }}>
+              Matched to your location, diagnosis, and needs — in under 2 minutes.
+            </p>
+          </div>
 
-        {/* Feature rows */}
-        <div className="flex-1 px-7 py-2">
-          {[
-            { icon: "📍", title: "Local to you",           desc: "Resources near your city and postcode" },
-            { icon: "🔒", title: "Private & anonymous",    desc: "No account needed, data auto-deletes" },
-            { icon: "💜", title: "Personalised matches",   desc: "Tailored to your diagnosis and stage" },
-          ].map((item, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-4 py-4"
-              style={{ borderBottom: i < 2 ? `1px solid ${SEP}` : "none" }}
-            >
+          {/* Feature rows */}
+          <div className="py-2">
+            {[
+              {
+                icon: (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={ORANGE} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+                    <circle cx="12" cy="9" r="2.5"/>
+                  </svg>
+                ),
+                title: "Local to you",
+                desc: "Resources near your city and postcode",
+              },
+              {
+                icon: (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={ORANGE} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2L4 5v6c0 5.25 3.5 10.15 8 11.5C16.5 21.15 20 16.25 20 11V5l-8-3z"/>
+                    <polyline points="9 12 11 14 15 10"/>
+                  </svg>
+                ),
+                title: "Private & anonymous",
+                desc: "No account needed, data auto-deletes",
+              },
+              {
+                icon: (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={ORANGE} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/>
+                  </svg>
+                ),
+                title: "Personalised matches",
+                desc: "Tailored to your diagnosis and stage",
+              },
+            ].map((item, i) => (
               <div
-                className="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-2xl text-xl"
-                style={{ background: "#FFF0E8" }}
+                key={i}
+                style={{
+                  display: "flex", alignItems: "center", gap: 16, paddingTop: 16, paddingBottom: 16,
+                  borderBottom: i < 2 ? `1px solid ${SEP}` : "none",
+                }}
               >
-                {item.icon}
+                <div style={{
+                  flexShrink: 0, width: 48, height: 48,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  borderRadius: 14, background: "#FFF0E8",
+                }}>
+                  {item.icon}
+                </div>
+                <div>
+                  <p style={{ fontSize: 16, fontWeight: 700, color: L1, marginBottom: 2 }}>{item.title}</p>
+                  <p style={{ fontSize: 14, color: L2, lineHeight: 1.4 }}>{item.desc}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-base font-bold mb-0.5" style={{ color: L1 }}>{item.title}</p>
-                <p className="text-sm leading-snug" style={{ color: L2 }}>{item.desc}</p>
+            ))}
+          </div>
+
+          {/* Stats row */}
+          <div style={{ display: "flex", justifyContent: "center", gap: 32, paddingTop: 20, paddingBottom: 20 }}>
+            {[["1,000+", "Resources"], ["188", "Countries"], ["700+", "Cities"]].map(([num, label]) => (
+              <div key={label} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                <span style={{ fontSize: 22, fontWeight: 800, color: ORANGE }}>{num}</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: L2, marginTop: 2 }}>{label}</span>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
 
-        {/* Stats row */}
-        <div className="flex justify-center gap-8 py-4">
-          {[["1,000+", "Resources"], ["188", "Countries"], ["700+", "Cities"]].map(([num, label]) => (
-            <div key={label} className="flex flex-col items-center">
-              <span className="text-2xl font-extrabold" style={{ color: ORANGE }}>{num}</span>
-              <span className="text-xs font-semibold mt-0.5" style={{ color: L2 }}>{label}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* CTA */}
-        <div className="px-6 pb-8 pt-2">
-          <button
-            onClick={() => setStep("city")}
-            className="w-full rounded-2xl py-4 text-lg font-bold text-white cursor-pointer"
-            style={{ background: ORANGE, boxShadow: `0 4px 16px ${ORANGE}4D` }}
-          >
-            Get started
-          </button>
-          <p className="text-center text-sm mt-3" style={{ color: L3 }}>Free to use, always</p>
+          {/* CTA */}
+          <div style={{ paddingBottom: 32, paddingTop: 8 }}>
+            <button
+              onClick={() => setStep("city")}
+              style={{ width: "100%", borderRadius: 18, paddingTop: 16, paddingBottom: 16, fontSize: 18, fontWeight: 700, color: "white", background: ORANGE, boxShadow: `0 4px 16px ${ORANGE}4D`, border: "none", cursor: "pointer" }}
+            >
+              Get started
+            </button>
+            <p style={{ textAlign: "center", fontSize: 13, color: L3, marginTop: 12 }}>Free to use, always</p>
+          </div>
         </div>
       </div>
     );
@@ -710,17 +740,50 @@ function ProfileTab({ profile, onEdit }: { profile: UserProfile; onEdit: () => v
   );
 }
 
+// ─── Nav SVG icons ────────────────────────────────────────────────────
+
+function NavIcon({ id, active }: { id: Tab; active: boolean }) {
+  const c = active ? ORANGE : L3;
+  const w = 22;
+  if (id === "home") return (
+    <svg width={w} height={w} viewBox="0 0 24 24" fill={active ? ORANGE : "none"} stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/>
+      <path d="M9 21V12h6v9"/>
+    </svg>
+  );
+  if (id === "explore") return (
+    <svg width={w} height={w} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8"/>
+      <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+  );
+  if (id === "map") return (
+    <svg width={w} height={w} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
+      <line x1="8" y1="2" x2="8" y2="18"/>
+      <line x1="16" y1="6" x2="16" y2="22"/>
+    </svg>
+  );
+  // profile / Me
+  return (
+    <svg width={w} height={w} viewBox="0 0 24 24" fill={active ? ORANGE : "none"} stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+      <circle cx="12" cy="7" r="4"/>
+    </svg>
+  );
+}
+
 // ─── Bottom nav ───────────────────────────────────────────────────────
 
 function BottomNav({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
-  const items: { id: Tab; label: string; icon: string }[] = [
-    { id: "home",    label: "Home",    icon: "🏠" },
-    { id: "explore", label: "Explore", icon: "🧭" },
-    { id: "map",     label: "Map",     icon: "🗺️" },
-    { id: "profile", label: "Me",      icon: "👤" },
+  const items: { id: Tab; label: string }[] = [
+    { id: "home",    label: "Home"    },
+    { id: "explore", label: "Explore" },
+    { id: "map",     label: "Map"     },
+    { id: "profile", label: "Me"      },
   ];
   return (
-    <div className="fixed bottom-0 left-0 right-0 flex border-t" style={{ background: "rgba(252,247,242,0.96)", borderColor: "rgba(0,0,0,0.1)" }}>
+    <div className="fixed bottom-0 left-0 right-0 flex border-t" style={{ background: "rgba(252,247,242,0.96)", borderColor: "rgba(0,0,0,0.1)", backdropFilter: "blur(12px)" }}>
       {items.map(item => {
         const active = tab === item.id;
         return (
@@ -729,7 +792,7 @@ function BottomNav({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
             onClick={() => setTab(item.id)}
             className="flex-1 flex flex-col items-center py-2.5 gap-0.5 cursor-pointer"
           >
-            <span className="text-lg">{item.icon}</span>
+            <NavIcon id={item.id} active={active} />
             <span className="text-[10px] font-medium" style={{ color: active ? ORANGE : L3 }}>{item.label}</span>
             {active && <div className="w-4 h-0.5 rounded-full mt-0.5" style={{ background: ORANGE }} />}
           </button>
@@ -753,10 +816,19 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: CREAM }}>
+      {/* Top bar with logo — visible on all tabs */}
+      <div
+        className="flex items-center justify-center border-b"
+        style={{ background: "rgba(252,247,242,0.96)", borderColor: SEP, height: 48, flexShrink: 0, backdropFilter: "blur(12px)" }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/canopy-logo.png" alt="Canopy" height={28} style={{ height: 28, objectFit: "contain" }} />
+      </div>
+
       {tab === "home"    && <HomeTab profile={profile} onRefine={handleRefine} />}
       {tab === "explore" && <ExploreTab />}
       {tab === "map"     && (
-        <div className="flex-1 flex flex-col" style={{ minHeight: 0, height: "calc(100vh - 56px)" }}>
+        <div className="flex-1 flex flex-col" style={{ minHeight: 0, height: "calc(100vh - 104px)" }}>
           <MapTab profile={profile} />
         </div>
       )}
