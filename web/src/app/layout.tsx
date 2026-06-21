@@ -9,8 +9,8 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "Cancer Support Matcher",
-  description: "Find cancer support resources tailored to your needs",
+  title: "Canopy",
+  description: "Find cancer support resources tailored to your location, diagnosis, and needs",
 };
 
 export default function RootLayout({

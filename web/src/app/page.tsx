@@ -1,10 +1,13 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { getAllResources, getSheetCities, getSheetCityCountryMap, getSheetDiagnoses } from "@/services/api";
+import dynamic from "next/dynamic";
+import { getAllResources, getSheetCities, getSheetCityCountryMap } from "@/services/api";
 import { Resource } from "@/data/resources";
 
-// ─── Design tokens (matching mobile) ─────────────────────────────────
+const MapTab = dynamic(() => import("@/components/MapTab"), { ssr: false });
+
+// ─── Design tokens ────────────────────────────────────────────────────
 const ORANGE = "#F47B4B";
 const CREAM  = "#F9F2E7";
 const L1     = "#1C1C1E";
@@ -40,12 +43,12 @@ const ALL_DIAGNOSES = [
 ];
 
 interface UserProfile { city: string; country: string; zipcode: string; diagnosis: string }
-type Tab = "home" | "explore" | "profile";
+type Tab = "home" | "explore" | "map" | "profile";
 
-// ─── Onboarding ──────────────────────────────────────────────────────
+// ─── Onboarding ───────────────────────────────────────────────────────
 
 function Onboarding({ onDone }: { onDone: (p: UserProfile) => void }) {
-  const [step, setStep] = useState<"city" | "diagnosis" | "postcode">("city");
+  const [step, setStep] = useState<"welcome" | "city" | "diagnosis" | "postcode">("welcome");
   const [cityQ, setCityQ] = useState("");
   const [cities, setCities] = useState<string[]>([]);
   const [city, setCity] = useState<string | null>(null);
@@ -82,15 +85,18 @@ function Onboarding({ onDone }: { onDone: (p: UserProfile) => void }) {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&zoom=10`, { headers: { "Accept-Language": "en" } });
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&zoom=10`,
+            { headers: { "Accept-Language": "en" } }
+          );
           const data = await res.json();
           const detected = data.address?.city || data.address?.town || data.address?.village || data.address?.county || "";
           const postcode = data.address?.postcode || "";
           if (detected) {
-            const exact = cities.find(c => c.toLowerCase() === detected.toLowerCase());
-            const match = exact || cities.find(c => c.toLowerCase().includes(detected.toLowerCase()) || detected.toLowerCase().includes(c.toLowerCase()));
-            if (match) {
-              setCity(match); setCityQ(match); if (postcode) setZip(postcode); setStep("diagnosis");
+            const exact   = cities.find(c => c.toLowerCase() === detected.toLowerCase());
+            const partial = exact || cities.find(c => c.toLowerCase().includes(detected.toLowerCase()) || detected.toLowerCase().includes(c.toLowerCase()));
+            if (partial) {
+              setCity(partial); setCityQ(partial); if (postcode) setZip(postcode); setStep("diagnosis");
             } else {
               setCityQ(detected); if (postcode) setZip(postcode);
               setGeoError(`Found "${detected}" — pick the closest match below.`);
@@ -104,17 +110,83 @@ function Onboarding({ onDone }: { onDone: (p: UserProfile) => void }) {
     );
   }, [cities]);
 
-  // City step
+  // ── Welcome screen ──
+  if (step === "welcome") {
+    return (
+      <div className="min-h-screen flex flex-col" style={{ background: CREAM }}>
+        {/* Hero block */}
+        <div className="flex flex-col items-center pt-16 pb-8 px-6">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/canopy-logo.png" alt="Canopy" width={88} height={88} className="mb-5 object-contain" />
+          <h1 className="text-4xl font-extrabold text-center mb-3 leading-tight" style={{ color: L1 }}>
+            Find support<br/>that fits you
+          </h1>
+          <p className="text-base text-center leading-relaxed" style={{ color: L2, maxWidth: 320 }}>
+            Matched to your location, diagnosis, and needs — in under 2 minutes.
+          </p>
+        </div>
+
+        {/* Feature rows */}
+        <div className="flex-1 px-7 py-2">
+          {[
+            { icon: "📍", title: "Local to you",           desc: "Resources near your city and postcode" },
+            { icon: "🔒", title: "Private & anonymous",    desc: "No account needed, data auto-deletes" },
+            { icon: "💜", title: "Personalised matches",   desc: "Tailored to your diagnosis and stage" },
+          ].map((item, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-4 py-4"
+              style={{ borderBottom: i < 2 ? `1px solid ${SEP}` : "none" }}
+            >
+              <div
+                className="flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-2xl text-xl"
+                style={{ background: "#FFF0E8" }}
+              >
+                {item.icon}
+              </div>
+              <div>
+                <p className="text-base font-bold mb-0.5" style={{ color: L1 }}>{item.title}</p>
+                <p className="text-sm leading-snug" style={{ color: L2 }}>{item.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Stats row */}
+        <div className="flex justify-center gap-8 py-4">
+          {[["1,000+", "Resources"], ["188", "Countries"], ["700+", "Cities"]].map(([num, label]) => (
+            <div key={label} className="flex flex-col items-center">
+              <span className="text-2xl font-extrabold" style={{ color: ORANGE }}>{num}</span>
+              <span className="text-xs font-semibold mt-0.5" style={{ color: L2 }}>{label}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* CTA */}
+        <div className="px-6 pb-8 pt-2">
+          <button
+            onClick={() => setStep("city")}
+            className="w-full rounded-2xl py-4 text-lg font-bold text-white cursor-pointer"
+            style={{ background: ORANGE, boxShadow: `0 4px 16px ${ORANGE}4D` }}
+          >
+            Get started
+          </button>
+          <p className="text-center text-sm mt-3" style={{ color: L3 }}>Free to use, always</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── City step ──
   if (step === "city") {
     return (
       <div className="min-h-screen flex items-center justify-center px-6" style={{ background: CREAM }}>
         <div className="max-w-md w-full">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="flex gap-1.5">
-              <div className="w-6 h-1.5 rounded-full" style={{ background: ORANGE }} />
-              <div className="w-1.5 h-1.5 rounded-full" style={{ background: SEP }} />
-              <div className="w-1.5 h-1.5 rounded-full" style={{ background: SEP }} />
-            </div>
+          <button onClick={() => setStep("welcome")} className="mb-4 text-sm font-medium cursor-pointer" style={{ color: L2 }}>← Back</button>
+          <div className="flex gap-1.5 mb-4">
+            <div className="w-6 h-1.5 rounded-full" style={{ background: ORANGE }} />
+            <div className="w-1.5 h-1.5 rounded-full" style={{ background: SEP }} />
+            <div className="w-1.5 h-1.5 rounded-full" style={{ background: SEP }} />
           </div>
           <h1 className="text-3xl font-extrabold mb-2" style={{ color: L1 }}>Where are you<br/>located?</h1>
           <p className="text-base mb-6" style={{ color: L2 }}>We&apos;ll find support resources available near you.</p>
@@ -166,7 +238,7 @@ function Onboarding({ onDone }: { onDone: (p: UserProfile) => void }) {
     );
   }
 
-  // Diagnosis step
+  // ── Diagnosis step ──
   if (step === "diagnosis") {
     return (
       <div className="min-h-screen flex items-center justify-center px-6" style={{ background: CREAM }}>
@@ -210,7 +282,7 @@ function Onboarding({ onDone }: { onDone: (p: UserProfile) => void }) {
     );
   }
 
-  // Postcode step
+  // ── Postcode step ──
   return (
     <div className="min-h-screen flex items-center justify-center px-6" style={{ background: CREAM }}>
       <div className="max-w-md w-full">
@@ -255,7 +327,7 @@ function Onboarding({ onDone }: { onDone: (p: UserProfile) => void }) {
   );
 }
 
-// ─── Resource detail modal ───────────────────────────────────────────
+// ─── Resource detail modal ────────────────────────────────────────────
 
 function extractPhone(contact?: string): string | null {
   if (!contact) return null;
@@ -264,9 +336,9 @@ function extractPhone(contact?: string): string | null {
 }
 
 function ResourceDetail({ resource, onClose }: { resource: Resource; onClose: () => void }) {
-  const cat = resource.helpTypes[0] ?? null;
+  const cat    = resource.helpTypes[0] ?? null;
   const accent = cat ? (CATS[cat]?.accent ?? ORANGE) : ORANGE;
-  const phone = extractPhone(resource.contact) || resource.phone;
+  const phone  = extractPhone(resource.contact) || resource.phone;
   const location = resource.entireCountry
     ? (resource.countries.length === 1 ? `${resource.countries[0]}-wide` : "Nationwide")
     : resource.cities.slice(0, 4).join(", ");
@@ -288,9 +360,6 @@ function ResourceDetail({ resource, onClose }: { resource: Resource; onClose: ()
           </div>
           <p className="text-sm leading-relaxed mb-3" style={{ color: L2 }}>{resource.description}</p>
           <p className="text-xs mb-4" style={{ color: L3 }}>📍 {location}</p>
-          {resource.distanceMiles != null && (
-            <p className="text-xs font-semibold text-emerald-600 mb-4">{resource.distanceMiles} miles away</p>
-          )}
 
           <div className="border-t pt-4 flex flex-wrap gap-3" style={{ borderColor: SEP }}>
             {resource.url && (
@@ -303,7 +372,7 @@ function ResourceDetail({ resource, onClose }: { resource: Resource; onClose: ()
             {phone && (
               <a href={`tel:${phone.replace(/\s/g, "")}`}
                 className="flex items-center justify-center gap-2 flex-1 min-w-[120px] py-3 rounded-xl text-sm font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                📞 Call {phone}
+                📞 Call
               </a>
             )}
             <button
@@ -322,12 +391,13 @@ function ResourceDetail({ resource, onClose }: { resource: Resource; onClose: ()
   );
 }
 
-// ─── Feed card ───────────────────────────────────────────────────────
+// ─── Feed card ────────────────────────────────────────────────────────
 
 function FeedCard({ resource, accent, onClick }: { resource: Resource; accent: string; onClick: () => void }) {
   return (
     <div
-      className="bg-white rounded-2xl overflow-hidden shadow-sm cursor-pointer hover:shadow-md transition-shadow min-w-[280px] max-w-[320px] flex-shrink-0"
+      className="bg-white rounded-2xl overflow-hidden shadow-sm cursor-pointer hover:shadow-md transition-shadow flex-shrink-0"
+      style={{ minWidth: 280, maxWidth: 320 }}
       onClick={onClick}
     >
       <div className="h-1" style={{ background: accent }} />
@@ -345,10 +415,10 @@ function FeedCard({ resource, accent, onClick }: { resource: Resource; accent: s
   );
 }
 
-// ─── Search result card ──────────────────────────────────────────────
+// ─── Search result card ───────────────────────────────────────────────
 
 function SearchCard({ resource, onClick }: { resource: Resource; onClick: () => void }) {
-  const cat = resource.helpTypes[0] ?? null;
+  const cat    = resource.helpTypes[0] ?? null;
   const accent = cat ? (CATS[cat]?.accent ?? ORANGE) : ORANGE;
 
   return (
@@ -364,7 +434,6 @@ function SearchCard({ resource, onClick }: { resource: Resource; onClick: () => 
       <p className="text-sm leading-relaxed mb-2 line-clamp-2" style={{ color: L2 }}>{resource.description}</p>
       <div className="flex justify-between">
         <span className="text-xs" style={{ color: L3 }}>
-          {resource.distanceMiles != null && <span className="font-semibold text-emerald-600 mr-1">{resource.distanceMiles}mi ·</span>}
           {resource.entireCountry ? "Nationwide" : resource.cities.slice(0, 2).join(", ")}
         </span>
         <span className="text-xs font-semibold" style={{ color: accent }}>View</span>
@@ -373,13 +442,13 @@ function SearchCard({ resource, onClick }: { resource: Resource; onClick: () => 
   );
 }
 
-// ─── Home tab ────────────────────────────────────────────────────────
+// ─── Home tab ─────────────────────────────────────────────────────────
 
-function HomeTab({ profile }: { profile: UserProfile }) {
+function HomeTab({ profile, onRefine }: { profile: UserProfile; onRefine: () => void }) {
   const [resources, setResources] = useState<Resource[] | null>(null);
-  const [search, setSearch] = useState("");
+  const [search, setSearch]       = useState("");
   const [activeCat, setActiveCat] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Resource | null>(null);
+  const [selected, setSelected]   = useState<Resource | null>(null);
 
   useEffect(() => {
     getAllResources().then(setResources).catch(() => setResources([]));
@@ -388,11 +457,11 @@ function HomeTab({ profile }: { profile: UserProfile }) {
   const filtered = useMemo(() => {
     if (!resources) return [];
     return resources.filter(r => {
-      const userZip = profile.zipcode.replace(/\s/g, "").toLowerCase();
-      const cityMatch = r.cities.some(c => c.toLowerCase() === profile.city.toLowerCase());
+      const userZip    = profile.zipcode.replace(/\s/g, "").toLowerCase();
+      const cityMatch  = r.cities.some(c => c.toLowerCase() === profile.city.toLowerCase());
       const countryMatch = !!profile.country && r.countries.some(rc => rc.toLowerCase() === profile.country.toLowerCase());
       const zipcodeMatch = userZip.length >= 3 && (r.zipcodes ?? []).some(z => z.replace(/\s/g, "").toLowerCase().startsWith(userZip.slice(0, 4)));
-      const locOk = cityMatch || zipcodeMatch || (r.entireCountry && countryMatch);
+      const locOk  = cityMatch || zipcodeMatch || (r.entireCountry && countryMatch);
       const diagOk = r.diagnoses.length === 0 || r.diagnoses.some(d => d.toLowerCase() === profile.diagnosis.toLowerCase());
       return locOk && diagOk;
     });
@@ -400,7 +469,9 @@ function HomeTab({ profile }: { profile: UserProfile }) {
 
   const displayed = useMemo(() => {
     const q = search.trim().toLowerCase();
-    let base = q ? filtered.filter(r => r.name.toLowerCase().includes(q) || r.description.toLowerCase().includes(q) || r.helpTypes.some(h => h.toLowerCase().includes(q))) : filtered;
+    let base = q
+      ? filtered.filter(r => r.name.toLowerCase().includes(q) || r.description.toLowerCase().includes(q) || r.helpTypes.some(h => h.toLowerCase().includes(q)))
+      : filtered;
     if (activeCat) base = base.filter(r => r.helpTypes.includes(activeCat));
     return base;
   }, [filtered, search, activeCat]);
@@ -408,7 +479,7 @@ function HomeTab({ profile }: { profile: UserProfile }) {
   const sections = useMemo(() => {
     if (search.trim() || activeCat) return [];
     const result: Array<{ key: string; label: string; accent?: string; resources: Resource[]; isFeatured?: boolean }> = [];
-    const nearby = filtered.filter(r => !r.entireCountry && r.cities.some(c => c.toLowerCase() === profile.city.toLowerCase()));
+    const nearby   = filtered.filter(r => !r.entireCountry && r.cities.some(c => c.toLowerCase() === profile.city.toLowerCase()));
     const featured = nearby.length >= 2 ? nearby.slice(0, 8) : filtered.slice(0, 8);
     if (featured.length > 0) result.push({ key: "__near", label: `Near you in ${profile.city}`, resources: featured, isFeatured: true });
     for (const cat of CAT_ORDER) {
@@ -435,6 +506,23 @@ function HomeTab({ profile }: { profile: UserProfile }) {
     );
   }
 
+  // Empty state — no resources for this city/diagnosis
+  if (resources.length > 0 && filtered.length === 0 && !search.trim() && !activeCat) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center px-8 text-center gap-4 pb-20">
+        <p className="text-xl font-bold" style={{ color: L1 }}>Coming soon to {profile.city}</p>
+        <p className="text-sm leading-relaxed" style={{ color: L2 }}>We&apos;re expanding quickly. Check back soon.</p>
+        <button
+          onClick={() => { setSearch(""); setActiveCat(null); }}
+          className="mt-2 px-6 py-3 rounded-xl text-sm font-bold text-white cursor-pointer"
+          style={{ background: ORANGE }}
+        >
+          Search all resources
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 overflow-y-auto pb-20">
       {selected && <ResourceDetail resource={selected} onClose={() => setSelected(null)} />}
@@ -444,6 +532,14 @@ function HomeTab({ profile }: { profile: UserProfile }) {
         <span className="text-sm font-bold" style={{ color: L1 }}>{profile.city}</span>
         <span className="text-sm mx-1" style={{ color: L3 }}>·</span>
         <span className="text-sm" style={{ color: L2 }}>{profile.diagnosis}</span>
+        <div style={{ flex: 1 }} />
+        <button
+          onClick={onRefine}
+          className="rounded-lg px-3 py-1.5 text-xs font-bold cursor-pointer"
+          style={{ background: "#FFF0E8", color: ORANGE }}
+        >
+          Refine
+        </button>
       </div>
 
       {/* Search */}
@@ -460,7 +556,7 @@ function HomeTab({ profile }: { profile: UserProfile }) {
       {/* Category chips */}
       <div className="flex gap-2 px-5 mt-2.5 overflow-x-auto pb-1 no-scrollbar">
         {["All", ...availCats].map(cat => {
-          const isAll = cat === "All";
+          const isAll    = cat === "All";
           const isActive = isAll ? !activeCat : activeCat === cat;
           return (
             <button
@@ -475,7 +571,7 @@ function HomeTab({ profile }: { profile: UserProfile }) {
         })}
       </div>
 
-      {/* Filtered results */}
+      {/* Results / feed */}
       {isFiltered ? (
         <div className="px-5 mt-4">
           <div className="flex items-center justify-between mb-3">
@@ -521,12 +617,12 @@ function HomeTab({ profile }: { profile: UserProfile }) {
   );
 }
 
-// ─── Explore tab ─────────────────────────────────────────────────────
+// ─── Explore tab ──────────────────────────────────────────────────────
 
 function ExploreTab() {
   const [resources, setResources] = useState<Resource[] | null>(null);
-  const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<Resource | null>(null);
+  const [search, setSearch]       = useState("");
+  const [selected, setSelected]   = useState<Resource | null>(null);
 
   useEffect(() => {
     getAllResources().then(setResources).catch(() => setResources([]));
@@ -535,8 +631,12 @@ function ExploreTab() {
   const results = useMemo(() => {
     if (!resources) return [];
     const q = search.trim().toLowerCase();
-    if (!q) return resources.slice(0, 30);
-    return resources.filter(r => r.name.toLowerCase().includes(q) || r.description.toLowerCase().includes(q) || r.helpTypes.some(h => h.toLowerCase().includes(q)));
+    if (!q) return resources.slice(0, 40);
+    return resources.filter(r =>
+      r.name.toLowerCase().includes(q) ||
+      r.description.toLowerCase().includes(q) ||
+      r.helpTypes.some(h => h.toLowerCase().includes(q))
+    );
   }, [resources, search]);
 
   return (
@@ -549,12 +649,14 @@ function ExploreTab() {
           type="text" value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Search all resources..."
           className="flex-1 text-base outline-none bg-transparent" style={{ color: L1 }}
-          autoComplete="off" autoFocus
+          autoComplete="off"
         />
       </div>
       {search.trim() && <p className="text-sm mb-2" style={{ color: L2 }}>{results.length} result{results.length !== 1 ? "s" : ""}</p>}
       {!resources ? (
-        <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: ORANGE }} /></div>
+        <div className="flex justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: ORANGE }} />
+        </div>
       ) : (
         results.map(r => <SearchCard key={r.id} resource={r} onClick={() => setSelected(r)} />)
       )}
@@ -562,15 +664,17 @@ function ExploreTab() {
   );
 }
 
-// ─── Profile tab ─────────────────────────────────────────────────────
+// ─── Profile tab ──────────────────────────────────────────────────────
 
 function ProfileTab({ profile, onEdit }: { profile: UserProfile; onEdit: () => void }) {
   return (
     <div className="flex-1 overflow-y-auto pb-20">
-      <div className="text-center py-10 px-5" style={{ background: ORANGE }}>
+      <div className="flex flex-col items-center py-10 px-5" style={{ background: ORANGE }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/canopy-logo.png" alt="Canopy" width={64} height={64} className="mb-3 object-contain" style={{ filter: "brightness(0) invert(1)" }} />
         <h2 className="text-2xl font-extrabold text-white mb-1">{profile.city}</h2>
-        <p className="text-white/80">{profile.diagnosis}</p>
-        {profile.zipcode && <p className="text-white/60 text-sm mt-1">{profile.zipcode}</p>}
+        <p style={{ color: "rgba(255,255,255,0.80)" }}>{profile.diagnosis}</p>
+        {profile.zipcode && <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.65)" }}>{profile.zipcode}</p>}
       </div>
       <div className="px-5 mt-6">
         <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: L3 }}>Your profile</p>
@@ -606,13 +710,14 @@ function ProfileTab({ profile, onEdit }: { profile: UserProfile; onEdit: () => v
   );
 }
 
-// ─── Bottom nav ──────────────────────────────────────────────────────
+// ─── Bottom nav ───────────────────────────────────────────────────────
 
 function BottomNav({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
-  const items: { id: Tab; label: string; icon: string; iconActive: string }[] = [
-    { id: "home", label: "Home", icon: "🏠", iconActive: "🏠" },
-    { id: "explore", label: "Explore", icon: "🧭", iconActive: "🧭" },
-    { id: "profile", label: "Me", icon: "👤", iconActive: "👤" },
+  const items: { id: Tab; label: string; icon: string }[] = [
+    { id: "home",    label: "Home",    icon: "🏠" },
+    { id: "explore", label: "Explore", icon: "🧭" },
+    { id: "map",     label: "Map",     icon: "🗺️" },
+    { id: "profile", label: "Me",      icon: "👤" },
   ];
   return (
     <div className="fixed bottom-0 left-0 right-0 flex border-t" style={{ background: "rgba(252,247,242,0.96)", borderColor: "rgba(0,0,0,0.1)" }}>
@@ -624,8 +729,9 @@ function BottomNav({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
             onClick={() => setTab(item.id)}
             className="flex-1 flex flex-col items-center py-2.5 gap-0.5 cursor-pointer"
           >
-            <span className="text-lg">{active ? item.iconActive : item.icon}</span>
+            <span className="text-lg">{item.icon}</span>
             <span className="text-[10px] font-medium" style={{ color: active ? ORANGE : L3 }}>{item.label}</span>
+            {active && <div className="w-4 h-0.5 rounded-full mt-0.5" style={{ background: ORANGE }} />}
           </button>
         );
       })}
@@ -633,19 +739,28 @@ function BottomNav({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
   );
 }
 
-// ─── Root ────────────────────────────────────────────────────────────
+// ─── Root ─────────────────────────────────────────────────────────────
 
 export default function App() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [tab, setTab] = useState<Tab>("home");
+  const [tab, setTab]         = useState<Tab>("home");
+
+  const handleRefine = useCallback(() => {
+    setProfile(null);
+  }, []);
 
   if (!profile) return <Onboarding onDone={p => { setProfile(p); setTab("home"); }} />;
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: CREAM }}>
-      {tab === "home" && <HomeTab profile={profile} />}
+      {tab === "home"    && <HomeTab profile={profile} onRefine={handleRefine} />}
       {tab === "explore" && <ExploreTab />}
-      {tab === "profile" && <ProfileTab profile={profile} onEdit={() => setProfile(null)} />}
+      {tab === "map"     && (
+        <div className="flex-1 flex flex-col" style={{ minHeight: 0, height: "calc(100vh - 56px)" }}>
+          <MapTab profile={profile} />
+        </div>
+      )}
+      {tab === "profile" && <ProfileTab profile={profile} onEdit={handleRefine} />}
       <BottomNav tab={tab} setTab={setTab} />
     </div>
   );
